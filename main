@@ -1,0 +1,131 @@
+import asyncio
+import time
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+from datetime import datetime, timedelta
+
+# --- КОНФИГУРАЦИЯ ---
+API_TOKEN = 'ТВОЙ_ТОКЕН_ЗДЕСЬ'
+bot = Bot(token=API_TOKEN)
+dp = Dispatcher()
+
+# База данных (в памяти)
+users = {} 
+
+# Список машин
+CARS_DATABASE = {
+    "Toyota Camry": "Common",
+    "Nissan Skyline GTR": "Rare",
+    "BMW M5": "Epic",
+    "Bugatti Chiron": "Legendary"
+}
+
+# Настройки REP
+REP_REWARDS = {
+    "Common": {"new": 20, "old": 4},
+    "Rare": {"new": 100, "old": 20},
+    "Epic": {"new": 500, "old": 100},
+    "Legendary": {"new": 2500, "old": 500}
+}
+
+# Настройки Рангов
+RANKS = [
+    (0, "Любитель"),
+    (1500, "Поисковик"),
+    (5000, "Охотник за редкостями"),
+    (15000, "Эксперт марки"),
+    (40000, "Эстет"),
+    (100000, "Миллиардер"),
+    (250000, "Икона стиля")
+]
+
+def get_rank(rep):
+    for threshold, name in reversed(RANKS):
+        if rep >= threshold:
+            return name
+    return "Новичок"
+
+def get_next_rank_info(rep):
+    for i in range(len(RANKS)-1):
+        if rep < RANKS[i+1][0]:
+            next_rank_name = RANKS[i+1][1]
+            next_rank_rep = RANKS[i+1][0]
+            current_rank_rep = RANKS[i][0]
+            progress = int((rep - current_rank_rep) / (next_rank_rep - current_rank_rep) * 100)
+            return next_rank_name, progress
+    return "MAX", 100
+
+# --- КОМАНДЫ ---
+
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer("🏎 Добро пожаловать в CarCase! Используй /case чтобы открыть кейс раз в 5 часов.")
+
+@dp.message(Command("case"))
+async def open_case(message: types.Message):
+    user_id = message.from_user.id
+    now = time.time()
+
+    if user_id not in users:
+        users[user_id] = {"rep": 0, "garage": [], "last_case": 0}
+
+    wait_time = 18000
+    if now - users[user_id]["last_case"] < wait_time:
+        remaining = int(wait_time - (now - users[user_id]["last_case"]))
+        hours = remaining // 3600
+        minutes = (remaining % 3600) // 60
+        await message.answer(f"⏳ Рано! Следующий кейс через {hours}ч {minutes}м.")
+        return
+
+    import random
+    car_name = random.choice(list(CARS_DATABASE.keys()))
+    rarity = CARS_DATABASE[car_name]
+    
+    is_new = car_name not in users[user_id]["garage"]
+    rep_gain = REP_REWARDS[rarity]["new" if is_new else "old"]
+    
+    users[user_id]["rep"] += rep_gain
+    if is_new:
+        users[user_id]["garage"].append(car_name)
+    users[user_id]["last_case"] = now
+
+    current_rank = get_rank(users[user_id]["rep"])
+    next_rank, progress = get_next_rank_info(users[user_id]["rep"])
+    
+    bars = progress // 10
+    progress_bar = "█" * bars + "░" * (10 - bars)
+
+    msg = (
+        f"📦 *КЕЙС ОТКРЫТ!*\n\n"
+        f"👤 *Игрок:* @{message.from_user.username}\n"
+        f"🏎 *Машина:* {car_name}\n"
+        f"💎 *Редкость:* {rarity}\n\n"
+        f"🎖 *Ваш статус:* {current_rank}\n"
+        f"📊 *До ранга {next_rank}:*\n"
+        f"`[{progress_bar}] {progress}%`\n\n"
+        f"📈 *Репутация:* +{rep_gain} REP {'(НОВИНКА! 🔥)' if is_new else '(Повтор)'}"
+    )
+
+    await message.answer(msg, parse_mode="Markdown")
+
+@dp.message(Command("profile"))
+async def profile(message: types.Message):
+    user_id = message.from_user.id
+    if user_id not in users:
+        await message.answer("Ты еще не открывал кейсы!")
+        return
+    
+    u = users[user_id]
+    msg = (
+        f"🪪 *ПРОФИЛЬ КОЛЛЕКЦИОНЕРА*\n\n"
+        f"🎖 *Статус:* {get_rank(u['rep'])}\n"
+        f"🏆 *Общий REP:* {u['rep']}\n"
+        f"🏎 *В гараже:* {len(u['garage'])} шт."
+    )
+    await message.answer(msg, parse_mode="Markdown")
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
