@@ -58,12 +58,10 @@ CARS_DATABASE = {
     "McLaren P1": "Legendary", "Ferrari LaFerrari": "Legendary"
 }
 
-RANKS = [
-    (0, "Любитель"), (1500, "Поисковик"), (5000, "Охотник за редкостями"),
-    (15000, "Эксперт марки"), (40000, "Эстет"), (100000, "Миллиардер"), (250000, "Икона стиля")
-]
+RANKS = [(0, "Любитель"), (1500, "Поисковик"), (5000, "Охотник за редкостями"),
+         (15000, "Эксперт марки"), (40000, "Эстет"), (100000, "Миллиардер"), (250000, "Икона стиля")]
 
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
+# --- ФУНКЦИИ ---
 def get_rank(rep):
     for threshold, name in reversed(RANKS):
         if rep >= threshold: return name
@@ -80,10 +78,8 @@ def get_next_rank_info(rep):
     return "MAX", 100
 
 def get_user_name(user: types.User):
-    if user.username: return f"@{user.username}"
-    return user.first_name
+    return f"@{user.username}" if user.username else user.first_name
 
-# Клавиатура теперь включает ID владельца в callback_data, чтобы кнопки были персональными
 def get_main_menu_keyboard(owner_id):
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="📦 Открыть кейс", callback_data=f"open_{owner_id}"))
@@ -94,13 +90,13 @@ def get_main_menu_keyboard(owner_id):
     return builder.as_markup()
 
 # --- КОМАНДЫ ---
-@dp.message(Command("start"))
-async def start(message: types.Message):
+@dp.message(Command("start", "case", "profile"))
+async def cmd_start(message: types.Message):
     name = get_user_name(message.from_user)
     welcome_text = (
         f"👋 *Привет, {name}!*\n\n"
         "🏎 Ты попал в *CarCase* — элитный клуб коллекционеров!\n\n"
-        "Испытай удачу и собери коллекцию редчайших гиперкаров мира.\n\n"
+        "Используй меню или кнопки ниже, чтобы управлять своим гаражом.\n\n"
         "🕒 *Кейс доступен каждые 5 часов.*"
     )
     await message.answer_photo(
@@ -110,32 +106,25 @@ async def start(message: types.Message):
         reply_markup=get_main_menu_keyboard(message.from_user.id)
     )
 
-# --- ОБРАБОТЧИКИ КНОПОК ---
+# --- CALLBACKS ---
 @dp.callback_query(F.data.startswith(("open_", "prof_", "gar_", "back_")))
 async def handle_callbacks(callback: types.CallbackQuery):
-    # Разделяем действие и ID владельца
     action, owner_id = callback.data.split("_")
     owner_id = int(owner_id)
     
-    # Проверка: тот ли человек нажал на кнопку?
     if callback.from_user.id != owner_id:
-        await callback.answer("❌ Это не ваше меню! Вызовите свое через /start", show_alert=True)
+        await callback.answer("❌ Это не ваше меню! Введите /start", show_alert=True)
         return
 
     name = get_user_name(callback.from_user)
 
     if action == "back":
-        welcome_text = (
-            f"👋 *Привет, {name}!*\n\n"
-            "🏎 Ты попал в *CarCase* — элитный клуб коллекционеров!\n\n"
-            "🕒 *Кейс доступен каждые 5 часов.*"
-        )
+        welcome_text = (f"👋 *Привет, {name}!*\n\n🏎 Ты попал в *CarCase*!\n\n🕒 *Кейс доступен каждые 5 часов.*")
         await callback.message.edit_caption(caption=welcome_text, parse_mode="Markdown", reply_markup=get_main_menu_keyboard(owner_id))
 
     elif action == "open":
         now = time.time()
         if owner_id not in users: users[owner_id] = {"rep": 0, "garage": [], "last_case": 0}
-
         wait_time = 18000
         if now - users[owner_id].get("last_case", 0) < wait_time:
             rem = int(wait_time - (now - users[owner_id].get("last_case", 0)))
@@ -144,7 +133,6 @@ async def handle_callbacks(callback: types.CallbackQuery):
 
         rarity = random.choices(list(RARITY_CONFIG.keys()), [r["chance"] for r in RARITY_CONFIG.values()], k=1)[0]
         car_name = random.choice([n for n, r in CARS_DATABASE.items() if r == rarity])
-        
         is_new = car_name not in users[owner_id]["garage"]
         rep_gain = RARITY_CONFIG[rarity]["new_rep" if is_new else "old_rep"]
         
@@ -155,17 +143,11 @@ async def handle_callbacks(callback: types.CallbackQuery):
 
         next_rank, progress = get_next_rank_info(users[owner_id]["rep"])
         progress_bar = "█" * (progress // 10) + "░" * (10 - (progress // 10))
-
         result_text = (
-            f"📦 *{name}, КЕЙС ОТКРЫТ!*\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🏎 *Авто:* `{car_name}`\n"
-            f"💎 *Редкость:* `{rarity}`\n"
-            f"📈 *REP:* `+{rep_gain}` {'(NEW! 🔥)' if is_new else ''}\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎖 *Ранг:* `{get_rank(users[owner_id]['rep'])}`\n"
-            f"📊 *До {next_rank}:* `{progress}%`\n"
-            f"`[{progress_bar}]`"
+            f"📦 *{name}, КЕЙС ОТКРЫТ!*\n━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏎 *Авто:* `{car_name}`\n💎 *Редкость:* `{rarity}`\n📈 *REP:* `+{rep_gain}` {'(NEW! 🔥)' if is_new else ''}\n"
+            f"━━━━━━━━━━━━━━━━━━━━\n🎖 *Ранг:* `{get_rank(users[owner_id]['rep'])}`\n"
+            f"📊 *До {next_rank}:* `{progress}%`\n`[{progress_bar}]`"
         )
         builder = InlineKeyboardBuilder()
         builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_{owner_id}"))
@@ -173,26 +155,18 @@ async def handle_callbacks(callback: types.CallbackQuery):
 
     elif action == "prof":
         if owner_id not in users:
-            await callback.answer("Сначала открой кейс!")
-            return
+            await callback.answer("Сначала открой кейс!", show_alert=True); return
         u = users[owner_id]
         next_rank, progress = get_next_rank_info(u['rep'])
         counts = {"Legendary": 0, "Epic": 0, "Rare": 0, "Common": 0}
         for car in u['garage']: counts[CARS_DATABASE.get(car, "Common")] += 1
-        
         progress_bar = "█" * (progress // 10) + "░" * (10 - (progress // 10))
         msg = (
-            f"👤 *ПРОФИЛЬ: {name}*\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎖 *Ранг:* `{get_rank(u['rep'])}`\n"
-            f"🏆 *Репутация:* `{u['rep']:,}`\n\n"
-            f"📊 *До {next_rank}:* `{progress}%`\n"
-            f"`[{progress_bar}]`\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"🏎 *ГАРАЖ:*\n"
-            f"💎 Leg: `{counts['Legendary']}` | 🟣 Epic: `{counts['Epic']}`\n"
-            f"🔵 Rare: `{counts['Rare']}` | ⚪ Com: `{counts['Common']}`\n"
-            f"━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 *ПРОФИЛЬ: {name}*\n━━━━━━━━━━━━━━━━━━━━\n"
+            f"🎖 *Ранг:* `{get_rank(u['rep'])}`\n🏆 *Репутация:* `{u['rep']:,}`\n\n"
+            f"📊 *До ранга {next_rank}:*\n`[{progress_bar}]` *{progress}%*\n━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏎 *ГАРАЖ:*\n💎 Leg: `{counts['Legendary']}` | 🟣 Epic: `{counts['Epic']}`\n"
+            f"🔵 Rare: `{counts['Rare']}` | ⚪ Com: `{counts['Common']}`\n━━━━━━━━━━━━━━━━━━━━\n"
             f"✨ *Всего машин:* `{len(u['garage'])}`"
         )
         builder = InlineKeyboardBuilder()
@@ -201,21 +175,28 @@ async def handle_callbacks(callback: types.CallbackQuery):
 
     elif action == "gar":
         if owner_id not in users or not users[owner_id]["garage"]:
-            await callback.answer("Гараж пуст!"); return
+            await callback.answer("Гараж пуст!", show_alert=True); return
         u = users[owner_id]
         sorted_garage = sorted(u['garage'], key=lambda x: (["Legendary", "Epic", "Rare", "Common"].index(CARS_DATABASE.get(x, "Common"))))
         garage_text = f"🏎 *ГАРАЖ: {name}*\n━━━━━━━━━━━━━━━━━━━━\n"
         for car in sorted_garage[:15]:
             r = CARS_DATABASE.get(car, "Common")
             garage_text += f"{RARITY_CONFIG[r]['emoji']} `{car}`\n"
-        
         builder = InlineKeyboardBuilder()
         builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data=f"back_{owner_id}"))
         await callback.message.edit_caption(caption=garage_text, parse_mode="Markdown", reply_markup=builder.as_markup())
 
     await callback.answer()
 
+# --- ЗАПУСК ---
 async def main():
+    # Настройка кнопки Menu
+    commands = [
+        types.BotCommand(command="start", description="🚀 Главное меню"),
+        types.BotCommand(command="case", description="📦 Открыть кейс"),
+        types.BotCommand(command="profile", description="🪪 Мой профиль")
+    ]
+    await bot.set_my_commands(commands)
     print("Бот запущен...")
     await dp.start_polling(bot)
 
