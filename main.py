@@ -3,12 +3,19 @@ import time
 import json
 import random
 import os
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from datetime import datetime, timedelta
 
 # --- КОНФИГУРАЦИЯ ---
-API_TOKEN = 'ТВОЙ_ТОКЕН_ЗДЕСЬ'
+load_dotenv() # Загружаем переменные из .env
+API_TOKEN = os.getenv("BOT_TOKEN")
+
+if not API_TOKEN:
+    print("ОШИБКА: Токен не найден! Создай файл .env и добавь туда BOT_TOKEN=твои_токен")
+    exit()
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
@@ -20,9 +27,8 @@ def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
             try:
-                # Преобразуем ключи-строки (ID юзеров) обратно в int, если нужно
-                # Но JSON хранит ключи как строки. Будем учитывать это.
                 data = json.load(f)
+                # JSON хранит ключи как строки, конвертируем обратно в int для user_id
                 return {int(k): v for k, v in data.items()}
             except json.JSONDecodeError:
                 return {}
@@ -135,10 +141,9 @@ async def open_case(message: types.Message):
         users[user_id] = {"rep": 0, "garage": [], "last_case": 0}
 
     wait_time = 18000 # 5 часов
-    # wait_time = 10 # Тестовое время (раскомментируй для тестов)
     
     if now - users[user_id].get("last_case", 0) < wait_time:
-        remaining = int(wait_time - (now - users[user_id]["last_case"]))
+        remaining = int(wait_time - (now - users[user_id].get("last_case", 0)))
         hours = remaining // 3600
         minutes = (remaining % 3600) // 60
         await message.answer(f"⏳ Рано! Следующий кейс через {hours}ч {minutes}м.")
