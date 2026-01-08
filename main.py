@@ -21,6 +21,7 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 DB_FILE = "database.json"
+# Ссылка на твою картинку
 PHOTO_URL = "https://1s4oyld5dc.ucarecd.net/93fe7ec6-08ee-4c26-88c0-a720bf6997f5/"
 
 # --- БАЗА ДАННЫХ ---
@@ -42,10 +43,10 @@ users = load_db()
 
 # --- КОНТЕНТ ---
 RARITY_CONFIG = {
-    "Common": {"chance": 60, "new_rep": 20, "old_rep": 4},
-    "Rare": {"chance": 30, "new_rep": 100, "old_rep": 20},
-    "Epic": {"chance": 9, "new_rep": 500, "old_rep": 100},
-    "Legendary": {"chance": 1, "new_rep": 2500, "old_rep": 500}
+    "Common": {"chance": 60, "new_rep": 20, "old_rep": 4, "emoji": "⚪"},
+    "Rare": {"chance": 30, "new_rep": 100, "old_rep": 20, "emoji": "🔵"},
+    "Epic": {"chance": 9, "new_rep": 500, "old_rep": 100, "emoji": "🟣"},
+    "Legendary": {"chance": 1, "new_rep": 2500, "old_rep": 500, "emoji": "💎"}
 }
 
 CARS_DATABASE = {
@@ -64,7 +65,7 @@ RANKS = [
     (15000, "Эксперт марки"), (40000, "Эстет"), (100000, "Миллиардер"), (250000, "Икона стиля")
 ]
 
-# --- ЛОГИКА ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def get_rank(rep):
     for threshold, name in reversed(RANKS):
         if rep >= threshold: return name
@@ -105,7 +106,7 @@ async def start(message: types.Message):
         reply_markup=get_main_menu_keyboard()
     )
 
-# --- CALLBACKS ---
+# --- ОБРАБОТЧИКИ КНОПОК ---
 @dp.callback_query(F.data == "main_menu")
 async def back_to_main(callback: types.CallbackQuery):
     welcome_text = (
@@ -133,10 +134,9 @@ async def btn_open(callback: types.CallbackQuery):
     wait_time = 18000
     if now - users[user_id].get("last_case", 0) < wait_time:
         rem = int(wait_time - (now - users[user_id].get("last_case", 0)))
-        await callback.answer(f"⏳ Жди {rem//3600}ч {(rem%3600)//60}м", show_alert=True)
+        await callback.answer(f"⏳ Рано! Жди {rem//3600}ч {(rem%3600)//60}м", show_alert=True)
         return
 
-    # Выбор машины
     rarities = list(RARITY_CONFIG.keys())
     weights = [RARITY_CONFIG[r]["chance"] for r in rarities]
     rarity = random.choices(rarities, weights=weights, k=1)[0]
@@ -151,15 +151,18 @@ async def btn_open(callback: types.CallbackQuery):
     save_db()
 
     next_rank, progress = get_next_rank_info(users[user_id]["rep"])
-    progress_bar = "█" * (progress // 10) + "░" * (10 - (progress // 10))
+    progress_bar = "🟢" * (progress // 10) + "⚪" * (10 - (progress // 10))
 
     result_text = (
-        f"📦 *КЕЙС ОТКРЫТ!*\n\n"
-        f"🏎 *Машина:* {car_name}\n"
-        f"💎 *Редкость:* {rarity}\n"
-        f"📈 *REP:* +{rep_gain} {'(NEW! 🔥)' if is_new else ''}\n\n"
-        f"🎖 *Ранг:* {get_rank(users[user_id]['rep'])}\n"
-        f"`[{progress_bar}] {progress}%`"
+        f"📦 *КЕЙС ОТКРЫТ!*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏎 *Авто:* `{car_name}`\n"
+        f"💎 *Редкость:* `{rarity}`\n"
+        f"📈 *REP:* `+{rep_gain}` {'(NEW! 🔥)' if is_new else ''}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎖 *Ранг:* `{get_rank(users[user_id]['rep'])}`\n"
+        f"📊 *До {next_rank}:* `{progress}%`\n"
+        f"`{progress_bar}`"
     )
     
     builder = InlineKeyboardBuilder()
@@ -172,35 +175,71 @@ async def btn_open(callback: types.CallbackQuery):
 async def btn_profile(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     if user_id not in users:
-        await callback.answer("Сначала открой кейс!", show_alert=True)
+        await callback.answer("Сначала открой свой первый кейс!", show_alert=True)
         return
 
     u = users[user_id]
+    rep = u['rep']
+    rank = get_rank(rep)
+    next_rank, progress = get_next_rank_info(rep)
+    
+    counts = {"Legendary": 0, "Epic": 0, "Rare": 0, "Common": 0}
+    for car in u['garage']:
+        r = CARS_DATABASE.get(car, "Common")
+        counts[r] += 1
+
+    progress_bar = "🟢" * (progress // 10) + "⚪" * (10 - (progress // 10))
+
     msg = (
-        f"🪪 *ПРОФИЛЬ КОЛЛЕКЦИОНЕРА*\n\n"
-        f"🎖 *Статус:* {get_rank(u['rep'])}\n"
-        f"🏆 *Весь REP:* {u['rep']}\n"
-        f"🏎 *Машин:* {len(u['garage'])} шт."
+        f"👤 *КАРТОЧКА КОЛЛЕКЦИОНЕРА*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🎖 *Ваш ранг:* `{rank}`\n"
+        f"🏆 *Репутация (REP):* `{rep:,}`\n\n"
+        f"📊 *Прогресс до {next_rank}:*\n"
+        f"`{progress_bar}` *{progress}%*\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"🏎 *ВАШ ГАРАЖ:*\n"
+        f"💎 Legendary: `{counts['Legendary']}`\n"
+        f"🟣 Epic: `{counts['Epic']}`\n"
+        f"🔵 Rare: `{counts['Rare']}`\n"
+        f"⚪ Common: `{counts['Common']}`\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"✨ *Всего машин:* `{len(u['garage'])}`"
     )
+    
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"))
-    await callback.message.edit_caption(caption=msg, parse_mode="Markdown", reply_markup=builder.as_markup())
+    
+    try:
+        await callback.message.edit_caption(caption=msg, parse_mode="Markdown", reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        pass
     await callback.answer()
 
 @dp.callback_query(F.data == "garage_btn")
 async def btn_garage(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     if user_id not in users or not users[user_id]["garage"]:
-        await callback.answer("Гараж пуст!", show_alert=True)
+        await callback.answer("Твой гараж пока пуст!", show_alert=True)
         return
 
     u = users[user_id]
     sorted_garage = sorted(u['garage'], key=lambda x: (["Legendary", "Epic", "Rare", "Common"].index(CARS_DATABASE.get(x, "Common"))))
-    garage_text = "🏎 *ТВОЙ ГАРАЖ (ТОП-15):*\n\n" + "\n".join([f"• {car}" for car in sorted_garage[:15]])
+    
+    garage_text = "🏎 *ТВОЙ ГАРАЖ (ТОП-15):*\n"
+    garage_text += "━━━━━━━━━━━━━━━━━━━━\n"
+    for car in sorted_garage[:15]:
+        r = CARS_DATABASE.get(car, "Common")
+        emoji = RARITY_CONFIG[r]["emoji"]
+        garage_text += f"{emoji} `{car}`\n"
     
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="main_menu"))
-    await callback.message.edit_caption(caption=garage_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    
+    try:
+        await callback.message.edit_caption(caption=garage_text, parse_mode="Markdown", reply_markup=builder.as_markup())
+    except TelegramBadRequest:
+        pass
     await callback.answer()
 
 async def main():
