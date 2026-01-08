@@ -1,5 +1,8 @@
 import asyncio
 import time
+import json
+import random
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from datetime import datetime, timedelta
@@ -9,23 +12,73 @@ API_TOKEN = 'ТВОЙ_ТОКЕН_ЗДЕСЬ'
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# База данных (в памяти)
-users = {} 
+# Файл базы данных
+DB_FILE = "database.json"
+
+# Загрузка базы данных
+def load_db():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            try:
+                # Преобразуем ключи-строки (ID юзеров) обратно в int, если нужно
+                # Но JSON хранит ключи как строки. Будем учитывать это.
+                data = json.load(f)
+                return {int(k): v for k, v in data.items()}
+            except json.JSONDecodeError:
+                return {}
+    return {}
+
+# Сохранение базы данных
+def save_db():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=4, ensure_ascii=False)
+
+# Инициализация базы
+users = load_db()
+
+# --- КОНТЕНТ ---
+
+# Редкости и шансы (Common - 60%, Rare - 30%, Epic - 9%, Legendary - 1%)
+RARITY_CONFIG = {
+    "Common": {"chance": 60, "new_rep": 20, "old_rep": 4},
+    "Rare": {"chance": 30, "new_rep": 100, "old_rep": 20},
+    "Epic": {"chance": 9, "new_rep": 500, "old_rep": 100},
+    "Legendary": {"chance": 1, "new_rep": 2500, "old_rep": 500}
+}
 
 # Список машин
 CARS_DATABASE = {
+    # Common
     "Toyota Camry": "Common",
+    "Honda Civic": "Common",
+    "Ford Focus": "Common",
+    "Volkswagen Golf": "Common",
+    "Hyundai Solaris": "Common",
+    "Kia Rio": "Common",
+    "Lada Vesta": "Common",
+    
+    # Rare
     "Nissan Skyline GTR": "Rare",
-    "BMW M5": "Epic",
-    "Bugatti Chiron": "Legendary"
-}
-
-# Настройки REP
-REP_REWARDS = {
-    "Common": {"new": 20, "old": 4},
-    "Rare": {"new": 100, "old": 20},
-    "Epic": {"new": 500, "old": 100},
-    "Legendary": {"new": 2500, "old": 500}
+    "Subaru Impreza WRX": "Rare",
+    "BMW M3 E46": "Rare",
+    "Toyota Supra A80": "Rare",
+    "Mitsubishi Lancer Evo": "Rare",
+    "Audi TT": "Rare",
+    
+    # Epic
+    "BMW M5 F90": "Epic",
+    "Mercedes-Benz AMG GT": "Epic",
+    "Audi R8": "Epic",
+    "Porsche 911 Turbo S": "Epic",
+    "Ferrari 458 Italia": "Epic",
+    "Lamborghini Huracan": "Epic",
+    
+    # Legendary
+    "Bugatti Chiron": "Legendary",
+    "Koenigsegg Agera RS": "Legendary",
+    "Pagani Huayra": "Legendary",
+    "McLaren P1": "Legendary",
+    "Ferrari LaFerrari": "Legendary"
 }
 
 # Настройки Рангов
@@ -38,6 +91,8 @@ RANKS = [
     (100000, "Миллиардер"),
     (250000, "Икона стиля")
 ]
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 
 def get_rank(rep):
     for threshold, name in reversed(RANKS):
@@ -55,6 +110,16 @@ def get_next_rank_info(rep):
             return next_rank_name, progress
     return "MAX", 100
 
+def get_random_car():
+    # Выбор редкости
+    rarities = list(RARITY_CONFIG.keys())
+    weights = [RARITY_CONFIG[r]["chance"] for r in rarities]
+    chosen_rarity = random.choices(rarities, weights=weights, k=1)[0]
+    
+    # Выбор машины этой редкости
+    available_cars = [name for name, r in CARS_DATABASE.items() if r == chosen_rarity]
+    return random.choice(available_cars), chosen_rarity
+
 # --- КОМАНДЫ ---
 
 @dp.message(Command("start"))
@@ -69,25 +134,28 @@ async def open_case(message: types.Message):
     if user_id not in users:
         users[user_id] = {"rep": 0, "garage": [], "last_case": 0}
 
-    wait_time = 18000
-    if now - users[user_id]["last_case"] < wait_time:
+    wait_time = 18000 # 5 часов
+    # wait_time = 10 # Тестовое время (раскомментируй для тестов)
+    
+    if now - users[user_id].get("last_case", 0) < wait_time:
         remaining = int(wait_time - (now - users[user_id]["last_case"]))
         hours = remaining // 3600
         minutes = (remaining % 3600) // 60
         await message.answer(f"⏳ Рано! Следующий кейс через {hours}ч {minutes}м.")
         return
 
-    import random
-    car_name = random.choice(list(CARS_DATABASE.keys()))
-    rarity = CARS_DATABASE[car_name]
+    car_name, rarity = get_random_car()
     
     is_new = car_name not in users[user_id]["garage"]
-    rep_gain = REP_REWARDS[rarity]["new" if is_new else "old"]
+    rep_gain = RARITY_CONFIG[rarity]["new_rep" if is_new else "old_rep"]
     
     users[user_id]["rep"] += rep_gain
     if is_new:
         users[user_id]["garage"].append(car_name)
     users[user_id]["last_case"] = now
+    
+    # Сохраняем прогресс
+    save_db()
 
     current_rank = get_rank(users[user_id]["rep"])
     next_rank, progress = get_next_rank_info(users[user_id]["rep"])
@@ -116,15 +184,31 @@ async def profile(message: types.Message):
         return
     
     u = users[user_id]
+    
+    # Сортировка гаража по редкости
+    sorted_garage = sorted(
+        u['garage'], 
+        key=lambda x: (
+            ["Legendary", "Epic", "Rare", "Common"].index(CARS_DATABASE.get(x, "Common")), 
+            x
+        )
+    )
+    
+    garage_preview = ", ".join(sorted_garage[:10])
+    if len(sorted_garage) > 10:
+        garage_preview += f" и еще {len(sorted_garage) - 10}..."
+
     msg = (
         f"🪪 *ПРОФИЛЬ КОЛЛЕКЦИОНЕРА*\n\n"
         f"🎖 *Статус:* {get_rank(u['rep'])}\n"
         f"🏆 *Общий REP:* {u['rep']}\n"
-        f"🏎 *В гараже:* {len(u['garage'])} шт."
+        f"🏎 *В гараже:* {len(u['garage'])} шт.\n"
+        f"📋 *Топ авто:* {garage_preview}"
     )
     await message.answer(msg, parse_mode="Markdown")
 
 async def main():
+    print("Бот запущен...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
