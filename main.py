@@ -21,7 +21,6 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 DB_FILE = "database.json"
-# Ссылка на твою картинку
 PHOTO_URL = "https://1s4oyld5dc.ucarecd.net/93fe7ec6-08ee-4c26-88c0-a720bf6997f5/"
 
 # --- БАЗА ДАННЫХ ---
@@ -134,12 +133,10 @@ async def btn_open(callback: types.CallbackQuery):
     wait_time = 18000
     if now - users[user_id].get("last_case", 0) < wait_time:
         rem = int(wait_time - (now - users[user_id].get("last_case", 0)))
-        await callback.answer(f"⏳ Рано! Жди {rem//3600}ч {(rem%3600)//60}м", show_alert=True)
+        await callback.answer(f"⏳ Жди {rem//3600}ч {(rem%3600)//60}м", show_alert=True)
         return
 
-    rarities = list(RARITY_CONFIG.keys())
-    weights = [RARITY_CONFIG[r]["chance"] for r in rarities]
-    rarity = random.choices(rarities, weights=weights, k=1)[0]
+    rarity = random.choices(list(RARITY_CONFIG.keys()), [r["chance"] for r in RARITY_CONFIG.values()], k=1)[0]
     car_name = random.choice([n for n, r in CARS_DATABASE.items() if r == rarity])
     
     is_new = car_name not in users[user_id]["garage"]
@@ -151,7 +148,7 @@ async def btn_open(callback: types.CallbackQuery):
     save_db()
 
     next_rank, progress = get_next_rank_info(users[user_id]["rep"])
-    progress_bar = "🟢" * (progress // 10) + "⚪" * (10 - (progress // 10))
+    progress_bar = "█" * (progress // 10) + "░" * (10 - (progress // 10))
 
     result_text = (
         f"📦 *КЕЙС ОТКРЫТ!*\n"
@@ -162,7 +159,7 @@ async def btn_open(callback: types.CallbackQuery):
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🎖 *Ранг:* `{get_rank(users[user_id]['rep'])}`\n"
         f"📊 *До {next_rank}:* `{progress}%`\n"
-        f"`{progress_bar}`"
+        f"`[{progress_bar}]`"
     )
     
     builder = InlineKeyboardBuilder()
@@ -183,20 +180,22 @@ async def btn_profile(callback: types.CallbackQuery):
     rank = get_rank(rep)
     next_rank, progress = get_next_rank_info(rep)
     
+    # Считаем редкости
     counts = {"Legendary": 0, "Epic": 0, "Rare": 0, "Common": 0}
     for car in u['garage']:
         r = CARS_DATABASE.get(car, "Common")
         counts[r] += 1
 
-    progress_bar = "🟢" * (progress // 10) + "⚪" * (10 - (progress // 10))
+    # Полоска прогресса (стиль [██░░░░░░░░])
+    progress_bar = "█" * (progress // 10) + "░" * (10 - (progress // 10))
 
     msg = (
         f"👤 *КАРТОЧКА КОЛЛЕКЦИОНЕРА*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🎖 *Ваш ранг:* `{rank}`\n"
         f"🏆 *Репутация (REP):* `{rep:,}`\n\n"
-        f"📊 *Прогресс до {next_rank}:*\n"
-        f"`{progress_bar}` *{progress}%*\n"
+        f"📊 *До ранга {next_rank}:*\n"
+        f"`[{progress_bar}]` *{progress}%*\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"🏎 *ВАШ ГАРАЖ:*\n"
         f"💎 Legendary: `{counts['Legendary']}`\n"
