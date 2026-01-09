@@ -1,7 +1,7 @@
 import asyncio
 import random
 import logging
-import sqlite3
+import json
 import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -11,10 +11,9 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 logging.basicConfig(level=logging.INFO)
 
 # --- КОНФИГУРАЦИЯ ---
-# Бот берет токен из переменной окружения BOT_TOKEN
+# Бот берет токен из переменной окружения BOT_TOKEN (PowerShell)
 API_TOKEN = os.getenv("BOT_TOKEN") 
-
-# Базовая ссылка на Raw-контент твоего репозитория
+DB_FILE = "database.json" # Файл базы данных
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/fantom6699/cae-case/main/cards/"
 
 if not API_TOKEN:
@@ -30,11 +29,11 @@ CARS_DATABASE = {
         "vw_golf", "hyundai_solaris", "kia_rio", "lada_vesta"
     ],
     "Редкие": [
-        "nissan_skyline_gtr", "subaru_impreza_wrx", "bmw_m3_e46", 
+        "nissan_skyline_gtr", "subaru_impreza", "bmv_m3_e46", 
         "toyota_supra", "mitsubishi_lancer_evo", "audi_tt"
     ],
     "Эпические": [
-        "bmw_m5_f90", "mercedes_benz_amg_gt", "audi_r8", 
+        "bmw_m5_f90", "mercedes_amg_gy", "auidi_r8", 
         "porshe_911_turbo_s", "ferrari_458_italia", "lamborghini_huracan"
     ],
     "Легендарные": [
@@ -50,33 +49,44 @@ CATEGORY_TO_FOLDER = {
     "Легендарные": "legendary"
 }
 
-# --- SQLITE БАЗА ДАННЫХ ---
-def init_db():
-    conn = sqlite3.connect('user_data.db')
-    cursor = conn.cursor()
-    cursor.execute('CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, exp INTEGER, level INTEGER)')
-    cursor.execute('CREATE TABLE IF NOT EXISTS garage (user_id INTEGER, car_id TEXT)')
-    conn.commit()
-    conn.close()
+# --- ФУНКЦИИ JSON БАЗЫ ДАННЫХ ---
+def load_db():
+    if os.path.exists(DB_FILE):
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            try:
+                data = json.load(f)
+                # Превращаем ID пользователей обратно в числа
+                return {int(k): v for k, v in data.items()}
+            except:
+                return {}
+    return {}
 
-def add_to_garage(user_id, car_id):
-    conn = sqlite3.connect('user_data.db')
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO garage (user_id, car_id) VALUES (?, ?)", (user_id, car_id))
-    conn.commit()
-    conn.close()
+def save_db():
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=4, ensure_ascii=False)
 
-def get_user_cars_in_category(user_id, category):
-    conn = sqlite3.connect('user_data.db')
-    cursor = conn.cursor()
-    # Получаем список всех машин пользователя
-    cursor.execute("SELECT car_id FROM garage WHERE user_id = ?", (user_id,))
-    user_cars = [row[0] for row in cursor.fetchall()]
-    conn.close()
-    # Фильтруем только те, что относятся к выбранной категории
-    return [car for car in set(user_cars) if car in CARS_DATABASE[category]]
+# Загружаем данные при старте
+users = load_db()
 
-# --- КЛАВИАТУРЫ ---
+def init_user(user_id):
+    if user_id not in users:
+        users[user_id] = {"exp": 0, "level": 1, "garage": []}
+        save_db()
+
+def add_exp(user_id, amount):
+    init_user(user_id)
+    u = users[user_id]
+    u["exp"] += amount
+    leveled_up = False
+    # Логика уровня: каждые level * 100 опыта
+    if u["exp"] >= u["level"] * 100:
+        u["exp"] -= u["level"] * 100
+        u["level"] += 1
+        leveled_up = True
+    save_db()
+    return leveled_up
+
+# --- ИНТЕРФЕЙС ---
 def main_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.button(text="📦 Открыть кейс")
@@ -88,11 +98,12 @@ def main_keyboard():
 
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
-    init_db()
-    await message.answer("🏎 Добро пожаловать! Используй меню для игры.", reply_markup=main_keyboard())
+    init_user(message.from_user.id)
+    await message.answer(f"🏎 Привет, {message.from_user.first_name}! Бот на связи.", reply_markup=main_keyboard())
 
 @dp.message(F.text == "📦 Открыть кейс")
 async def open_case(message: types.Message):
+    init_user(message.from_user.id)
     chance = random.random() * 100
     if chance < 1: rarity = "Легендарные"
     elif chance < 10: rarity = "Эпические"
@@ -100,7 +111,10 @@ async def open_case(message: types.Message):
     else: rarity = "Обычные"
 
     car_file = random.choice(CARS_DATABASE[rarity])
-    add_to_garage(message.from_user.id, car_file)
+    
+    # Добавляем в гараж и сохраняем опыт
+    users[message.from_user.id]["garage"].append(car_file)
+    leveled_up = add_exp(message.from_user.id, 20)
     
     folder = CATEGORY_TO_FOLDER[rarity]
     extension = ".jpg" if "porshe" in car_file else ".png"
@@ -108,14 +122,17 @@ async def open_case(message: types.Message):
     
     display_name = car_file.replace('_', ' ').title()
     caption = f"🎁 *ТЕБЕ ВЫПАЛО:*\n\n🏎 Авто: `{display_name}`\n💎 Редкость: *{rarity}*"
+    if leveled_up:
+        caption += "\n\n🆙 *НОВЫЙ УРОВЕНЬ!*"
 
     try:
         await message.answer_photo(photo=photo_url, caption=caption, parse_mode="Markdown")
     except Exception:
-        await message.answer(f"{caption}\n\n⚠️ Ошибка загрузки фото.")
+        await message.answer(f"{caption}\n\n⚠️ Ошибка фото.")
 
 @dp.message(F.text == "🏎 Гараж")
 async def garage_categories(message: types.Message):
+    init_user(message.from_user.id)
     builder = InlineKeyboardBuilder()
     for cat in CARS_DATABASE.keys():
         builder.button(text=cat, callback_data=f"gar_cat_{cat}")
@@ -126,22 +143,25 @@ async def garage_categories(message: types.Message):
 async def show_cars_in_category(callback: types.CallbackQuery):
     category = callback.data.replace("gar_cat_", "")
     user_id = callback.from_user.id
+    init_user(user_id)
     
-    cars = get_user_cars_in_category(user_id, category)
+    # Фильтруем машины пользователя по категории
+    user_garage = users[user_id]["garage"]
+    cars_in_cat = [car for car in set(user_garage) if car in CARS_DATABASE[category]]
     
-    if not cars:
-        await callback.answer(f"В категории '{category}' у вас еще нет машин!", show_alert=True)
+    if not cars_in_cat:
+        await callback.answer(f"В категории '{category}' пусто!", show_alert=True)
         return
 
     builder = InlineKeyboardBuilder()
-    for car_id in cars:
+    for car_id in cars_in_cat:
         display_name = car_id.replace('_', ' ').title()
         builder.button(text=display_name, callback_data=f"view_car_{car_id}")
     
     builder.button(text="⬅️ Назад", callback_data="back_to_cats")
     builder.adjust(2)
     
-    await callback.message.edit_text(f"🏎 Категория: *{category}*\nВаши машины:", 
+    await callback.message.edit_text(f"🏎 Категория: *{category}*\nТвои машины:", 
                                      parse_mode="Markdown", 
                                      reply_markup=builder.as_markup())
 
@@ -170,8 +190,14 @@ async def view_car_in_garage(callback: types.CallbackQuery):
     )
     await callback.answer()
 
+@dp.message(F.text == "👤 Профиль")
+async def profile_cmd(message: types.Message):
+    init_user(message.from_user.id)
+    u = users[message.from_user.id]
+    await message.answer(f"👤 *ПРОФИЛЬ*\n\n🎖 Уровень: `{u['level']}`\n📊 Опыт: `{u['exp']}/{u['level']*100}`", parse_mode="Markdown")
+
 async def main():
-    init_db()
+    save_db() # Создаем файл если его нет
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
