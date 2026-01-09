@@ -99,10 +99,7 @@ RANKS = [
     (200000, "Легенда"),
 ]
 
-CASE_TRIGGERS = [
-    "кейс","case","машина","машинку","тачка","тачку","тачки",
-    "открыть кейс","car","cars","авто"
-]
+CASE_TRIGGERS = ["кейс","case","машина","машинку","тачка","тачку","car","cars","авто"]
 
 # ================= DB =================
 
@@ -141,8 +138,9 @@ def main_menu(uid):
 # ================= CASE =================
 
 async def open_case(uid, name):
+    uid = str(uid)
     now = time.time()
-    user = users.setdefault(str(uid), {"rep": 0, "garage": [], "last": 0})
+    user = users.setdefault(uid, {"rep": 0, "garage": [], "last": 0})
 
     if now - user["last"] < CASE_COOLDOWN:
         r = int(CASE_COOLDOWN - (now - user["last"]))
@@ -186,70 +184,43 @@ async def open_case(uid, name):
 bot = Bot(TOKEN)
 dp = Dispatcher()
 
-# -------- START & DEEPLINK --------
-
-@dp.message(Command("start"))
-async def start(m: Message):
-    args = m.text.split(maxsplit=1)
-    payload = args[1] if len(args) > 1 else None
-
-    if payload == "case":
-        return await start_case_private(m)
-    if payload == "profile":
-        return await show_profile(m)
-
-    await m.answer("Добро пожаловать в *CarCase*", parse_mode="Markdown", reply_markup=main_menu(m.from_user.id))
-
-# -------- GROUP COMMANDS --------
+# -------- OPEN CASE FROM ANYWHERE --------
 
 @dp.message(Command("case"))
 async def cmd_case(m: Message):
-    if m.chat.type != "private":
-        botname = (await bot.get_me()).username
-        return await m.reply(f"📦 Открой кейс:\nhttps://t.me/{botname}?start=case")
-    await start_case_private(m)
+    ok, *d = await open_case(m.from_user.id, m.from_user.first_name)
+    if not ok:
+        return await m.reply(d[0])
+    text, photo = d
+    if photo:
+        await m.reply_photo(photo=photo, caption=text, parse_mode="Markdown")
+    else:
+        await m.reply(text, parse_mode="Markdown")
 
-@dp.message(Command("profile"))
-async def cmd_profile(m: Message):
-    if m.chat.type != "private":
-        botname = (await bot.get_me()).username
-        return await m.reply(f"🪪 Профиль:\nhttps://t.me/{botname}?start=profile")
-    await show_profile(m)
-
-# -------- GROUP TRIGGERS --------
-
-@dp.message(F.chat.type.in_(["group", "supergroup"]))
-async def group_triggers(m: Message):
+@dp.message(F.text)
+async def triggers(m: Message):
     if not m.text:
         return
     txt = m.text.lower()
     if any(w in txt for w in CASE_TRIGGERS):
-        botname = (await bot.get_me()).username
-        await m.reply(f"📦 Открой кейс:\nhttps://t.me/{botname}?start=case")
+        ok, *d = await open_case(m.from_user.id, m.from_user.first_name)
+        if not ok:
+            return await m.reply(d[0])
+        text, photo = d
+        if photo:
+            await m.reply_photo(photo=photo, caption=text, parse_mode="Markdown")
+        else:
+            await m.reply(text, parse_mode="Markdown")
 
-# -------- PRIVATE --------
-
-async def start_case_private(m: Message):
-    ok, *d = await open_case(m.from_user.id, m.from_user.first_name)
-    if not ok:
-        return await m.answer(d[0])
-    text, photo = d
-    if photo:
-        await m.answer_photo(photo=photo, caption=text, parse_mode="Markdown")
-    else:
-        await m.answer(text, parse_mode="Markdown")
-
-async def show_profile(m: Message):
-    u = users.get(str(m.from_user.id))
-    if not u:
-        return await m.answer("Сначала открой кейс")
-    await m.answer(f"🪪 Профиль\nРанг: {get_rank(u['rep'])}\nREP: {u['rep']}\nМашин: {len(u['garage'])}")
+@dp.message(Command("start"))
+async def start(m: Message):
+    await m.answer("Добро пожаловать в *CarCase*", parse_mode="Markdown", reply_markup=main_menu(m.from_user.id))
 
 # -------- CALLBACKS --------
 
 @dp.callback_query(F.data.startswith("open:"))
 async def open_cb(c: CallbackQuery):
-    uid = int(c.data.split(":")[1])
+    uid = c.data.split(":")[1]
     ok, *d = await open_case(uid, c.from_user.first_name)
     if not ok:
         return await c.answer(d[0], show_alert=True)
@@ -261,23 +232,19 @@ async def open_cb(c: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("profile:"))
 async def profile_cb(c: CallbackQuery):
-    uid = int(c.data.split(":")[1])
-    u = users.get(str(uid))
-    if not u:
-        return await c.answer("Сначала открой кейс", show_alert=True)
+    uid = c.data.split(":")[1]
+    u = users.get(uid)
     await c.message.answer(f"Ранг: {get_rank(u['rep'])}\nREP: {u['rep']}\nМашин: {len(u['garage'])}")
 
 @dp.callback_query(F.data.startswith("garage:"))
 async def garage_cb(c: CallbackQuery):
     _, uid, action, *rest = c.data.split(":")
-    uid = int(uid)
-    user = users.get(str(uid))
+    user = users.get(uid)
     if not user:
-        return await c.answer("Гараж пуст", show_alert=True)
+        return
 
     if action == "menu":
         kb = [[InlineKeyboardButton(text=f"{RARITY_CONFIG[r]['emoji']} {r}", callback_data=f"garage:{uid}:list:{r}:1")] for r in RARITY_CONFIG]
-        kb.append([InlineKeyboardButton(text="⬅ Назад", callback_data=f"back:{uid}")])
         await c.message.answer("Выбери категорию:", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
@@ -290,31 +257,19 @@ async def garage_cb(c: CallbackQuery):
         chunk = cars[(page-1)*PAGE_SIZE:page*PAGE_SIZE]
 
         kb = [[InlineKeyboardButton(text=c, callback_data=f"garage:{uid}:show:{c}")] for c in chunk]
-        nav = []
-        if page > 1:
-            nav.append(InlineKeyboardButton("◀", callback_data=f"garage:{uid}:list:{rarity}:{page-1}"))
         if page < pages:
-            nav.append(InlineKeyboardButton("▶", callback_data=f"garage:{uid}:list:{rarity}:{page+1}"))
-        if nav:
-            kb.append(nav)
-        kb.append([InlineKeyboardButton("⬅ Категории", callback_data=f"garage:{uid}:menu")])
+            kb.append([InlineKeyboardButton("▶", callback_data=f"garage:{uid}:list:{rarity}:{page+1}")])
+        kb.append([InlineKeyboardButton("⬅ Назад", callback_data=f"garage:{uid}:menu")])
 
-        await c.message.answer(f"{rarity} — {page}/{pages}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
+        await c.message.answer(f"{rarity} {page}/{pages}", reply_markup=InlineKeyboardMarkup(inline_keyboard=kb))
         return
 
     if action == "show":
         car = rest[0]
         rarity = CARS_DATABASE[car]
         img = CAR_IMAGE_MAP.get(car)
-        if not img:
-            return
         path = os.path.join(CARDS_DIR, RARITY_DIR[rarity], img)
         await c.message.answer_photo(FSInputFile(path), caption=f"{RARITY_CONFIG[rarity]['emoji']} *{car}*", parse_mode="Markdown")
-
-@dp.callback_query(F.data.startswith("back:"))
-async def back(c: CallbackQuery):
-    uid = int(c.data.split(":")[1])
-    await c.message.answer("Главное меню", reply_markup=main_menu(uid))
 
 # ================= RUN =================
 
@@ -322,7 +277,6 @@ async def main():
     await bot.set_my_commands([
         BotCommand(command="start", description="Главное меню"),
         BotCommand(command="case", description="Открыть кейс"),
-        BotCommand(command="profile", description="Профиль"),
     ])
     await dp.start_polling(bot)
 
