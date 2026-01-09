@@ -38,7 +38,6 @@ RARITY_CONFIG = {
     "Легендарные": {"chance": 1, "new_rep": 3000, "old_rep": 600, "emoji": "💎"},
 }
 
-# папки на английском (как у тебя на сервере)
 RARITY_DIR = {
     "Обычные": "common",
     "Редкие": "rare",
@@ -46,21 +45,74 @@ RARITY_DIR = {
     "Легендарные": "legendary",
 }
 
+# === ГЛАВНОЕ: ТОЧНОЕ СООТВЕТСТВИЕ ИМЯ -> ФАЙЛ ===
+
+CAR_IMAGE_MAP = {
+    # COMMON
+    "Toyota Camry": "toyota_camry.png",
+    "Honda Civic": "honda_civic.png",
+    "Ford Focus": "ford_focus.png",
+    "Volkswagen Golf": "vw_golf.png",
+    "Hyundai Solaris": "hyundai_solaris.png",
+    "Kia Rio": "kia_rio.png",
+    "Lada Vesta": "lada_vesta.png",
+
+    # RARE
+    "Toyota Supra": "toyota_supra.png",
+    "Nissan Skyline GTR": "nissan_skyline_gtr.png",
+    "BMW M3 E46": "bmw_m3_e46.png",
+    "Audi TT": "audi_tt.png",
+    "Mitsubishi Lancer Evo": "mitsubishi_lancer_evo.png",
+    "Subaru Impreza WRX": "subaru_Impreza_wrx.png",
+
+    # EPIC
+    "BMW M5 F90": "bmw_m5_f90.png",
+    "Audi R8": "auidi_r8.png",
+    "Ferrari 458 Italia": "ferrari_458_italia.png",
+    "Mercedes-Benz AMG GT": "mercedes_benz_amg_gt.png",
+    "Lamborghini Huracan": "lamborghini_huracan.png",
+    "Porsche 911 Turbo S": "porshe_911_turbo_s.jpg",
+
+    # LEGENDARY
+    "Bugatti Chiron": "bugatti_chiron.png",
+    "Koenigsegg Agera RS": "koenigsegg_agera_rs.png",
+    "Pagani Huayra": "pagani_huayra.png",
+    "Ferrari LaFerrari": "ferrari_laferrari.png",
+    "McLaren P1": "mclaren_p1.png",
+}
+
 CARS_DATABASE = {
+    # COMMON
     "Toyota Camry": "Обычные",
     "Honda Civic": "Обычные",
     "Ford Focus": "Обычные",
+    "Volkswagen Golf": "Обычные",
+    "Hyundai Solaris": "Обычные",
+    "Kia Rio": "Обычные",
+    "Lada Vesta": "Обычные",
 
-    "Toyota Supra A80": "Редкие",
+    # RARE
+    "Toyota Supra": "Редкие",
     "Nissan Skyline GTR": "Редкие",
     "BMW M3 E46": "Редкие",
+    "Audi TT": "Редкие",
+    "Mitsubishi Lancer Evo": "Редкие",
+    "Subaru Impreza WRX": "Редкие",
 
+    # EPIC
     "BMW M5 F90": "Эпические",
     "Audi R8": "Эпические",
+    "Ferrari 458 Italia": "Эпические",
+    "Mercedes-Benz AMG GT": "Эпические",
     "Lamborghini Huracan": "Эпические",
+    "Porsche 911 Turbo S": "Эпические",
 
+    # LEGENDARY
     "Bugatti Chiron": "Легендарные",
     "Koenigsegg Agera RS": "Легендарные",
+    "Pagani Huayra": "Легендарные",
+    "Ferrari LaFerrari": "Легендарные",
+    "McLaren P1": "Легендарные",
 }
 
 RANKS = [
@@ -94,15 +146,8 @@ def get_rank(rep: int) -> str:
             return name
     return RANKS[0][1]
 
-def next_rank_info(rep: int):
-    for value, name in RANKS:
-        if rep < value:
-            return value, name
-    return None, "MAX"
-
 def progress_bar(percent: int) -> str:
-    filled = percent // 10
-    return "█" * filled + "░" * (10 - filled)
+    return "█" * (percent // 10) + "░" * (10 - percent // 10)
 
 def main_menu(uid: int):
     return InlineKeyboardMarkup(inline_keyboard=[
@@ -140,8 +185,7 @@ async def open_case(user_id: int, name: str):
 
     save_db(users)
 
-    next_val, next_name = next_rank_info(user["rep"])
-    percent = 100 if not next_val else min(100, int(user["rep"] / next_val * 100))
+    percent = min(100, int(user["rep"] / 1500 * 100))
 
     text = (
         f"📦 *КЕЙС ОТКРЫТ!*\n"
@@ -154,14 +198,12 @@ async def open_case(user_id: int, name: str):
         f"`[{progress_bar(percent)}] {percent}%`"
     )
 
-    # поиск картинки
     photo = None
-    folder = RARITY_DIR[rarity]
-    for ext in ("jpg", "png", "jpeg", "webp"):
-        path = os.path.join(CARDS_DIR, folder, f"{car}.{ext}")
-        if os.path.exists(path):
-            photo = FSInputFile(path)
-            break
+    img_name = CAR_IMAGE_MAP.get(car)
+    if img_name:
+        img_path = os.path.join(CARDS_DIR, RARITY_DIR[rarity], img_name)
+        if os.path.exists(img_path):
+            photo = FSInputFile(img_path)
 
     return True, text, photo
 
@@ -171,11 +213,10 @@ bot = Bot(TOKEN)
 dp = Dispatcher()
 
 @dp.message(Command("start"))
-async def cmd_start(message: Message):
+async def start(message: Message):
     await message.answer(
         f"👋 *Привет, {message.from_user.first_name}!*\n\n"
-        "🏎 Добро пожаловать в *CarCase*.\n"
-        "📦 Открывай кейсы и собирай коллекцию.",
+        "🏎 Добро пожаловать в *CarCase*.",
         parse_mode="Markdown",
         reply_markup=main_menu(message.from_user.id),
     )
@@ -183,9 +224,6 @@ async def cmd_start(message: Message):
 @dp.callback_query(F.data.startswith("open:"))
 async def cb_open(call: CallbackQuery):
     uid = int(call.data.split(":")[1])
-    if call.from_user.id != uid:
-        return await call.answer("❌ Не твое меню", show_alert=True)
-
     ok, *data = await open_case(uid, call.from_user.first_name)
     if not ok:
         return await call.answer(data[0], show_alert=True)
@@ -196,41 +234,16 @@ async def cb_open(call: CallbackQuery):
     else:
         await call.message.answer(text, parse_mode="Markdown")
 
-@dp.callback_query(F.data.startswith("profile:"))
-async def cb_profile(call: CallbackQuery):
-    uid = int(call.data.split(":")[1])
-    u = users.get(uid)
-    if not u:
-        return await call.answer("Сначала открой кейс", show_alert=True)
-
-    next_val, next_name = next_rank_info(u["rep"])
-    percent = 100 if not next_val else min(100, int(u["rep"] / next_val * 100))
-
-    await call.message.answer(
-        f"🪪 *ПРОФИЛЬ*\n"
-        f"━━━━━━━━━━━━━━\n"
-        f"🎖 Ранг: `{get_rank(u['rep'])}`\n"
-        f"🏆 REP: `{u['rep']}`\n"
-        f"🚗 Машин: `{len(u['garage'])}`\n"
-        f"`[{progress_bar(percent)}] {percent}%`",
-        parse_mode="Markdown",
-    )
-
 @dp.callback_query(F.data.startswith("garage:"))
 async def cb_garage(call: CallbackQuery):
     uid = int(call.data.split(":")[1])
-    if call.from_user.id != uid:
-        return await call.answer("❌ Не твое меню", show_alert=True)
-
     user = users.get(uid)
     if not user or not user["garage"]:
         return await call.answer("🚗 Гараж пуст", show_alert=True)
 
     text = "🏎 *ТВОЙ ГАРАЖ*\n━━━━━━━━━━━━━━\n"
-    for car in sorted(user["garage"], key=lambda x: CARS_DATABASE[x]):
-        rarity = CARS_DATABASE[car]
-        emoji = RARITY_CONFIG[rarity]["emoji"]
-        text += f"{emoji} `{car}`\n"
+    for car in user["garage"]:
+        text += f"• `{car}`\n"
 
     await call.message.answer(text, parse_mode="Markdown")
 
