@@ -2,6 +2,7 @@ import asyncio
 import random
 import logging
 import sqlite3
+import os
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
@@ -9,23 +10,28 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Конфигурация
-API_TOKEN = 'ТВОЙ_ТОКЕН_БОТА'
-# Базовая ссылка на твои изображения на GitHub
+# --- КОНФИГУРАЦИЯ ---
+# Бот будет брать токен из переменной окружения BOT_TOKEN, которую ты задал в PowerShell
+API_TOKEN = os.getenv("BOT_TOKEN") 
+
+# Базовая ссылка на Raw-контент твоего репозитория
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/fantom6699/cae-case/main/cards/"
 
-# Инициализация бота и диспетчера
+if not API_TOKEN:
+    exit("Ошибка: Переменная окружения BOT_TOKEN не найдена! Проверь настройки в PowerShell.")
+
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
-# База данных машин (приведено в соответствие с твоими файлами)
+# --- БАЗА ДАННЫХ МАШИН ---
+# Имена файлов строго соответствуют твоему репозиторию
 CARS_DATABASE = {
     "Обычные": [
         "toyota_camry", "honda_civic", "ford_focus", 
         "vw_golf", "hyundai_solaris", "kia_rio", "lada_vesta"
     ],
     "Редкие": [
-        "nissan_skyline_gtr", "subaru_impreza", "bmw_m3_e46", 
+        "nissan_skyline_gtr", "subaru_impreza_wrx", "bmw_m3_e46", 
         "toyota_supra", "mitsubishi_lancer_evo", "audi_tt"
     ],
     "Эпические": [
@@ -38,7 +44,6 @@ CARS_DATABASE = {
     ]
 }
 
-# Маппинг категорий на папки GitHub
 CATEGORY_TO_FOLDER = {
     "Обычные": "common",
     "Редкие": "rare",
@@ -46,7 +51,7 @@ CATEGORY_TO_FOLDER = {
     "Легендарные": "legendary"
 }
 
-# Работа с БД (уровни и опыт)
+# --- РАБОТА С БД ---
 def init_db():
     conn = sqlite3.connect('user_data.db')
     cursor = conn.cursor()
@@ -81,7 +86,7 @@ def add_exp(user_id, amount):
     conn.close()
     return new_level > level
 
-# Клавиатура
+# --- ИНТЕРФЕЙС ---
 def main_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.button(text="📦 Открыть кейс")
@@ -91,49 +96,38 @@ def main_keyboard():
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
     init_db()
-    await message.answer("Добро пожаловать в CarCase! Открывай кейсы и собирай коллекцию машин.", reply_markup=main_keyboard())
+    await message.answer(f"🏎 Привет, {message.from_user.first_name}! Готов испытать удачу?", reply_markup=main_keyboard())
 
 @dp.message(F.text == "👤 Профиль")
 async def profile_cmd(message: types.Message):
     exp, level = get_user_data(message.from_user.id)
-    await message.answer(f"👤 *Профиль*\n\nуровень: {level}\nОпыт: {exp}/{level*100}", parse_mode="Markdown")
+    await message.answer(f"👤 *ПРОФИЛЬ*\n\n🎖 Уровень: `{level}`\n📊 Опыт: `{exp}/{level*100}`", parse_mode="Markdown")
 
 @dp.message(F.text == "📦 Открыть кейс")
 async def open_case(message: types.Message):
-    # Логика шансов
     chance = random.random() * 100
-    if chance < 1:
-        rarity = "Легендарные"
-    elif chance < 10:
-        rarity = "Эпические"
-    elif chance < 40:
-        rarity = "Редкие"
-    else:
-        rarity = "Обычные"
+    if chance < 1: rarity = "Легендарные"
+    elif chance < 10: rarity = "Эпические"
+    elif chance < 40: rarity = "Редкие"
+    else: rarity = "Обычные"
 
     car_file = random.choice(CARS_DATABASE[rarity])
     folder = CATEGORY_TO_FOLDER[rarity]
     
-    # Исправляем расширение для Porsche (у тебя в репозитории это .jpg)
-    extension = ".jpg" if car_file == "porshe_911_turbo_s" else ".png"
-    
-    # Формируем прямую ссылку на фото
+    # Porsche у тебя в репозитории .jpg, остальные .png
+    extension = ".jpg" if "porshe" in car_file else ".png"
     photo_url = f"{GITHUB_BASE_URL}{folder}/{car_file}{extension}"
     
-    # Добавляем опыт
-    leveled_up = add_exp(message.from_user.id, 20)
+    add_exp(message.from_user.id, 20)
+    display_name = car_file.replace('_', ' ').title()
     
-    car_name_display = car_file.replace('_', ' ').title()
-    result_text = f"🎉 Тебе выпала машина: *{car_name_display}*\nРедкость: *{rarity}*"
-    
-    if leveled_up:
-        result_text += "\n\n🆙 *Новый уровень!*"
+    caption = f"📦 *КЕЙС ОТКРЫТ!*\n\n🏎 Авто: `{display_name}`\n💎 Редкость: *{rarity}*"
 
     try:
-        await message.answer_photo(photo=photo_url, caption=result_text, parse_mode="Markdown")
+        await message.answer_photo(photo=photo_url, caption=caption, parse_mode="Markdown")
     except Exception as e:
-        logging.error(f"Ошибка отправки фото: {e}")
-        await message.answer(f"{result_text}\n\n(Не удалось загрузить фото)")
+        logging.error(f"Ошибка загрузки фото: {e}")
+        await message.answer(f"{caption}\n\n⚠️ _Картинка не загрузилась (проверь пути на GitHub)_", parse_mode="Markdown")
 
 async def main():
     init_db()
