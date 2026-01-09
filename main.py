@@ -3,90 +3,62 @@ import random
 import logging
 import json
 import os
+from dotenv import load_dotenv  # Добавили загрузку .env
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
+
+# Загружаем переменные из файла .env
+load_dotenv()
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 # --- КОНФИГУРАЦИЯ ---
-# Бот берет токен из переменной окружения BOT_TOKEN (PowerShell)
+# Теперь бот сам найдет BOT_TOKEN внутри твоего файла .env
 API_TOKEN = os.getenv("BOT_TOKEN") 
-DB_FILE = "database.json" # Файл базы данных
+DB_FILE = "database.json" 
 GITHUB_BASE_URL = "https://raw.githubusercontent.com/fantom6699/cae-case/main/cards/"
 
 if not API_TOKEN:
-    exit("Ошибка: Переменная BOT_TOKEN не найдена!")
+    exit("Ошибка: Переменная BOT_TOKEN не найдена в файле .env!")
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 
 # --- БАЗА ДАННЫХ МАШИН ---
 CARS_DATABASE = {
-    "Обычные": [
-        "toyota_camry", "honda_civic", "ford_focus", 
-        "vw_golf", "hyundai_solaris", "kia_rio", "lada_vesta"
-    ],
-    "Редкие": [
-        "nissan_skyline_gtr", "subaru_impreza", "bmv_m3_e46", 
-        "toyota_supra", "mitsubishi_lancer_evo", "audi_tt"
-    ],
-    "Эпические": [
-        "bmw_m5_f90", "mercedes_amg_gy", "auidi_r8", 
-        "porshe_911_turbo_s", "ferrari_458_italia", "lamborghini_huracan"
-    ],
-    "Легендарные": [
-        "bugatti_chiron", "koenigsegg_agera_rs", "pagani_huayra", 
-        "mclaren_p1", "ferrari_laferrari"
-    ]
+    "Обычные": ["toyota_camry", "honda_civic", "ford_focus", "vw_golf", "hyundai_solaris", "kia_rio", "lada_vesta"],
+    "Редкие": ["nissan_skyline_gtr", "subaru_impreza", "bmw_m3_e46", "toyota_supra", "mitsubishi_lancer_evo", "audi_tt"],
+    "Эпические": ["bmw_m5_f90", "mercedes_benz_amg_gt", "audi_r8", "porshe_911_turbo_s", "ferrari_458_italia", "lamborghini_huracan"],
+    "Легендарные": ["bugatti_chiron", "koenigsegg_agera_rs", "pagani_huayra", "mclaren_p1", "ferrari_laferrari"]
 }
 
-CATEGORY_TO_FOLDER = {
-    "Обычные": "common",
-    "Редкие": "rare",
-    "Эпические": "epic",
-    "Легендарные": "legendary"
-}
+CATEGORY_TO_FOLDER = {"Обычные": "common", "Редкие": "rare", "Эпические": "epic", "Легендарные": "legendary"}
 
-# --- ФУНКЦИИ JSON БАЗЫ ДАННЫХ ---
+# --- РАБОТА С JSON ---
 def load_db():
     if os.path.exists(DB_FILE):
         with open(DB_FILE, "r", encoding="utf-8") as f:
             try:
                 data = json.load(f)
-                # Превращаем ID пользователей обратно в числа
                 return {int(k): v for k, v in data.items()}
-            except:
-                return {}
+            except: return {}
     return {}
 
-def save_db():
+def save_db(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=4, ensure_ascii=False)
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
-# Загружаем данные при старте
+# Инициализация данных
 users = load_db()
 
 def init_user(user_id):
     if user_id not in users:
         users[user_id] = {"exp": 0, "level": 1, "garage": []}
-        save_db()
+        save_db(users)
 
-def add_exp(user_id, amount):
-    init_user(user_id)
-    u = users[user_id]
-    u["exp"] += amount
-    leveled_up = False
-    # Логика уровня: каждые level * 100 опыта
-    if u["exp"] >= u["level"] * 100:
-        u["exp"] -= u["level"] * 100
-        u["level"] += 1
-        leveled_up = True
-    save_db()
-    return leveled_up
-
-# --- ИНТЕРФЕЙС ---
+# --- КЛАВИАТУРЫ ---
 def main_keyboard():
     builder = ReplyKeyboardBuilder()
     builder.button(text="📦 Открыть кейс")
@@ -99,11 +71,13 @@ def main_keyboard():
 @dp.message(Command("start"))
 async def start_cmd(message: types.Message):
     init_user(message.from_user.id)
-    await message.answer(f"🏎 Привет, {message.from_user.first_name}! Бот на связи.", reply_markup=main_keyboard())
+    await message.answer("🏎 Бот запущен! Данные берутся из .env и сохраняются в database.json", reply_markup=main_keyboard())
 
 @dp.message(F.text == "📦 Открыть кейс")
 async def open_case(message: types.Message):
-    init_user(message.from_user.id)
+    user_id = message.from_user.id
+    init_user(user_id)
+    
     chance = random.random() * 100
     if chance < 1: rarity = "Легендарные"
     elif chance < 10: rarity = "Эпические"
@@ -111,83 +85,65 @@ async def open_case(message: types.Message):
     else: rarity = "Обычные"
 
     car_file = random.choice(CARS_DATABASE[rarity])
+    users[user_id]["garage"].append(car_file)
     
-    # Добавляем в гараж и сохраняем опыт
-    users[message.from_user.id]["garage"].append(car_file)
-    leveled_up = add_exp(message.from_user.id, 20)
+    # Опыт
+    users[user_id]["exp"] += 20
+    if users[user_id]["exp"] >= users[user_id]["level"] * 100:
+        users[user_id]["exp"] = 0
+        users[user_id]["level"] += 1
     
+    save_db(users)
+
     folder = CATEGORY_TO_FOLDER[rarity]
     extension = ".jpg" if "porshe" in car_file else ".png"
     photo_url = f"{GITHUB_BASE_URL}{folder}/{car_file}{extension}"
     
     display_name = car_file.replace('_', ' ').title()
-    caption = f"🎁 *ТЕБЕ ВЫПАЛО:*\n\n🏎 Авто: `{display_name}`\n💎 Редкость: *{rarity}*"
-    if leveled_up:
-        caption += "\n\n🆙 *НОВЫЙ УРОВЕНЬ!*"
-
-    try:
-        await message.answer_photo(photo=photo_url, caption=caption, parse_mode="Markdown")
-    except Exception:
-        await message.answer(f"{caption}\n\n⚠️ Ошибка фото.")
+    await message.answer_photo(photo=photo_url, caption=f"🎁 Выпало: *{display_name}*\n💎 Редкость: {rarity}", parse_mode="Markdown")
 
 @dp.message(F.text == "🏎 Гараж")
 async def garage_categories(message: types.Message):
-    init_user(message.from_user.id)
     builder = InlineKeyboardBuilder()
     for cat in CARS_DATABASE.keys():
         builder.button(text=cat, callback_data=f"gar_cat_{cat}")
     builder.adjust(2)
-    await message.answer("🏎 Выберите категорию гаража:", reply_markup=builder.as_markup())
+    await message.answer("🏎 Категории твоего гаража:", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data.startswith("gar_cat_"))
-async def show_cars_in_category(callback: types.CallbackQuery):
-    category = callback.data.replace("gar_cat_", "")
+async def show_category(callback: types.CallbackQuery):
+    cat = callback.data.replace("gar_cat_", "")
     user_id = callback.from_user.id
     init_user(user_id)
     
-    # Фильтруем машины пользователя по категории
-    user_garage = users[user_id]["garage"]
-    cars_in_cat = [car for car in set(user_garage) if car in CARS_DATABASE[category]]
+    # Показываем только уникальные машины игрока в этой категории
+    user_cars = [c for c in set(users[user_id]["garage"]) if c in CARS_DATABASE[cat]]
     
-    if not cars_in_cat:
-        await callback.answer(f"В категории '{category}' пусто!", show_alert=True)
+    if not user_cars:
+        await callback.answer(f"В категории {cat} пока пусто!", show_alert=True)
         return
 
     builder = InlineKeyboardBuilder()
-    for car_id in cars_in_cat:
-        display_name = car_id.replace('_', ' ').title()
-        builder.button(text=display_name, callback_data=f"view_car_{car_id}")
-    
+    for car_id in user_cars:
+        builder.button(text=car_id.replace('_', ' ').title(), callback_data=f"view_car_{car_id}")
     builder.button(text="⬅️ Назад", callback_data="back_to_cats")
     builder.adjust(2)
     
-    await callback.message.edit_text(f"🏎 Категория: *{category}*\nТвои машины:", 
-                                     parse_mode="Markdown", 
-                                     reply_markup=builder.as_markup())
+    await callback.message.edit_text(f"🏎 Твои машины в категории {cat}:", reply_markup=builder.as_markup())
 
 @dp.callback_query(F.data == "back_to_cats")
-async def back_to_categories(callback: types.CallbackQuery):
-    builder = InlineKeyboardBuilder()
-    for cat in CARS_DATABASE.keys():
-        builder.button(text=cat, callback_data=f"gar_cat_{cat}")
-    builder.adjust(2)
-    await callback.message.edit_text("🏎 Выберите категорию гаража:", reply_markup=builder.as_markup())
+async def back(callback: types.CallbackQuery):
+    await garage_categories(callback.message)
+    await callback.answer()
 
 @dp.callback_query(F.data.startswith("view_car_"))
-async def view_car_in_garage(callback: types.CallbackQuery):
+async def view_car(callback: types.CallbackQuery):
     car_file = callback.data.replace("view_car_", "")
     rarity = next((r for r, cars in CARS_DATABASE.items() if car_file in cars), "Обычные")
-    folder = CATEGORY_TO_FOLDER[rarity]
     extension = ".jpg" if "porshe" in car_file else ".png"
-    photo_url = f"{GITHUB_BASE_URL}{folder}/{car_file}{extension}"
+    photo_url = f"{GITHUB_BASE_URL}{CATEGORY_TO_FOLDER[rarity]}/{car_file}{extension}"
     
-    display_name = car_file.replace('_', ' ').title()
-    
-    await callback.message.answer_photo(
-        photo=photo_url,
-        caption=f"🏎 *{display_name}*\n💎 Редкость: {rarity}",
-        parse_mode="Markdown"
-    )
+    await callback.message.answer_photo(photo=photo_url, caption=f"🏎 *{car_file.replace('_', ' ').title()}*", parse_mode="Markdown")
     await callback.answer()
 
 @dp.message(F.text == "👤 Профиль")
@@ -197,7 +153,6 @@ async def profile_cmd(message: types.Message):
     await message.answer(f"👤 *ПРОФИЛЬ*\n\n🎖 Уровень: `{u['level']}`\n📊 Опыт: `{u['exp']}/{u['level']*100}`", parse_mode="Markdown")
 
 async def main():
-    save_db() # Создаем файл если его нет
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
