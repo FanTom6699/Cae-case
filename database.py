@@ -6,16 +6,13 @@ class Database:
 
     async def create_tables(self):
         async with aiosqlite.connect(self.db_path) as db:
-            # Таблица пользователей
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
-                    coins INTEGER DEFAULT 1000,
-                    joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    coins INTEGER DEFAULT 1000
                 )
             """)
-            # Таблица гаража (на будущее)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS garage (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
