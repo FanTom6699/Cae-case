@@ -9,7 +9,6 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
 from database import db
 
-# Загрузка настроек
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
@@ -24,24 +23,25 @@ async def main():
     @dp.message(CommandStart())
     async def cmd_start(message: types.Message):
         user_id = message.from_user.id
+        # Пытаемся взять @username, если его нет — берем First Name
+        username = message.from_user.username or message.from_user.first_name
         
         if await db.user_exists(user_id):
-            # Если пользователь уже есть в базе
             user_data = await db.get_user(user_id)
             
             builder = ReplyKeyboardBuilder()
             builder.row(types.KeyboardButton(text="📦 Открыть Кейс"), types.KeyboardButton(text="🏎 Мой Гараж"))
             builder.row(types.KeyboardButton(text="💰 Баланс"), types.KeyboardButton(text="🏆 Топ игроков"))
 
+            # Короткое приветствие без лишнего текста
             await message.answer(
-                f"🏎 **С возвращением на трассу, {user_data['username']}!**\n\n"
-                f"Твои тачки заждались в гараже. Готов к новым заездам? 🏁\n"
-                f"Твой баланс: `{user_data['coins']}` **Coins**",
+                f"👋 **С возвращением, {user_data['username']}!**\n\n"
+                f"Твой баланс: `{user_data['coins']}` **Coins**.\n"
+                f"Что планируешь делать?",
                 reply_markup=builder.as_markup(resize_keyboard=True),
                 parse_mode="Markdown"
             )
         else:
-            # Если пользователя нет в базе
             builder = InlineKeyboardBuilder()
             builder.row(types.InlineKeyboardButton(
                 text="📝 Зарегистрироваться", 
@@ -49,9 +49,8 @@ async def main():
             )
 
             await message.answer(
-                "👋 **Добро пожаловать в CarCase!**\n\n"
-                "Это элитный клуб коллекционеров автомобилей. Чтобы начать собирать свой гараж "
-                "и открывать кейсы, тебе нужно пройти быструю регистрацию.",
+                f"Привет, **{username}**! 👋\n\n"
+                "Чтобы начать собирать коллекцию машин, тебе нужно зарегистрироваться в системе CarCase.",
                 reply_markup=builder.as_markup(),
                 parse_mode="Markdown"
             )
@@ -59,6 +58,7 @@ async def main():
     @dp.callback_query(F.data == "register_me")
     async def process_registration(callback: types.CallbackQuery):
         user_id = callback.from_user.id
+        # При регистрации сохраняем именно Username (ник)
         username = callback.from_user.username or callback.from_user.first_name
 
         if not await db.user_exists(user_id):
@@ -70,34 +70,28 @@ async def main():
 
             await callback.message.edit_text(
                 f"✅ **Регистрация успешна!**\n\n"
-                f"Добро пожаловать в игру, `{username}`! Мы начислили тебе стартовые **1000 Coins**. "
+                f"Добро пожаловать, `{username}`! На твой счет зачислено **1000 Coins**.\n"
                 f"Удачи в открытии кейсов! 🏎💨",
                 parse_mode="Markdown"
             )
-            # Отправляем клавиатуру новым сообщением, так как edit_text не меняет Reply-клавиатуру
             await callback.message.answer(
-                "Воспользуйся меню ниже, чтобы начать играть! ↓",
+                "Выбери действие в меню ниже:",
                 reply_markup=builder.as_markup(resize_keyboard=True)
             )
         else:
-            await callback.answer("Ты уже зарегистрирован! 🏎", show_alert=True)
+            await callback.answer("Ты уже в системе!", show_alert=True)
 
     @dp.message(F.text == "💰 Баланс")
     async def show_balance(message: types.Message):
         user_data = await db.get_user(message.from_user.id)
         if user_data:
             await message.answer(
-                f"💳 **Твой финансовый счет:**\n\n"
-                f"Доступно: `{user_data['coins']}` **Coins**\n"
-                f"Трать их с умом! 🚀",
+                f"💰 Твой баланс: `{user_data['coins']}` **Coins**",
                 parse_mode="Markdown"
             )
-        else:
-            await message.answer("Сначала зарегистрируйся через /start!")
 
-    # Запуск бота
     try:
-        print("🏎 CarCase Bot запущен и готов к гонкам!")
+        print("🏎 CarCase Bot запущен!")
         await dp.start_polling(bot)
     finally:
         await bot.session.close()
