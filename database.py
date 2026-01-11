@@ -6,15 +6,16 @@ class Database:
 
     async def create_tables(self):
         async with aiosqlite.connect(self.db_path) as db:
-            # Таблица игроков
+            # Таблица пользователей
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
-                    coins INTEGER DEFAULT 1000
+                    coins INTEGER DEFAULT 1000,
+                    joined_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            # Таблица инвентаря (Гараж)
+            # Таблица гаража (на будущее)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS garage (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +27,12 @@ class Database:
             """)
             await db.commit()
 
-    async def register_user(self, user_id: int, username: str):
+    async def user_exists(self, user_id: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)) as cursor:
+                return await cursor.fetchone() is not None
+
+    async def add_user(self, user_id: int, username: str):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)",
@@ -34,10 +40,10 @@ class Database:
             )
             await db.commit()
 
-    async def get_user_balance(self, user_id: int):
+    async def get_user(self, user_id: int):
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT coins FROM users WHERE user_id = ?", (user_id,)) as cursor:
-                row = await cursor.fetchone()
-                return row[0] if row else 0
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)) as cursor:
+                return await cursor.fetchone()
 
 db = Database()
