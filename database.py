@@ -7,6 +7,7 @@ class Database:
 
     async def create_tables(self):
         async with aiosqlite.connect(self.db_path) as db:
+            # Создаем таблицы, если их нет
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id INTEGER PRIMARY KEY,
@@ -15,6 +16,14 @@ class Database:
                     last_case_time INTEGER DEFAULT 0
                 )
             """)
+            
+            # Пытаемся добавить колонку last_case_time, если таблица уже была создана раньше без неё
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN last_case_time INTEGER DEFAULT 0")
+            except aiosqlite.OperationalError:
+                # Если колонка уже есть, SQLite выдаст ошибку, мы её просто игнорируем
+                pass
+
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS garage (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,12 +38,13 @@ class Database:
     async def user_exists(self, user_id: int):
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)) as cursor:
-                return await cursor.fetchone() is not None
+                result = await cursor.fetchone()
+                return result is not None
 
     async def add_user(self, user_id: int, username: str):
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
-                "INSERT OR IGNORE INTO users (user_id, username) VALUES (?, ?)",
+                "INSERT OR IGNORE INTO users (user_id, username, last_case_time) VALUES (?, ?, 0)",
                 (user_id, username)
             )
             await db.commit()
