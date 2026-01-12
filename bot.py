@@ -1,11 +1,9 @@
 import asyncio
 import os
 import random
-from datetime import datetime, timedelta
-
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message
 from dotenv import load_dotenv
 
 from database import (
@@ -13,9 +11,11 @@ from database import (
     add_user,
     get_user,
     update_user_coins,
+    set_user_coins,
+    add_common_case,
+    remove_common_case,
     add_car_to_garage,
-    get_user_garage,
-    update_last_case_time,
+    get_user_garage
 )
 
 load_dotenv()
@@ -25,10 +25,10 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # =========================
-# Конфигурация кейса
+# Конфигурация
 # =========================
 
-CASE_COOLDOWN = timedelta(hours=5)
+CASE_PRICE_COMMON = 1000
 
 RARITY_EMOJI = {
     "Common": "⚪",
@@ -37,7 +37,13 @@ RARITY_EMOJI = {
     "Legendary": "💎",
 }
 
-# Пример пула машин (оставь свой, если уже есть)
+RARITY_SELL_PRICE = {
+    "Common": 200,
+    "Rare": 1000,
+    "Epic": 5000,
+    "Legendary": 50000,
+}
+
 CARS = [
     {"name": "Toyota Camry", "rarity": "Common"},
     {"name": "Honda Civic", "rarity": "Common"},
@@ -56,42 +62,19 @@ CARS = [
 ]
 
 RARITY_CHANCES = [
-    ("Legendary", 1),
-    ("Epic", 8),
-    ("Rare", 21),
-    ("Common", 70),
+    ("Rare", 20),
+    ("Common", 80),
 ]
 
 # =========================
-# Утилиты
+# Утилиты UI
 # =========================
-
-def pick_rarity():
-    roll = random.randint(1, 100)
-    current = 0
-    for rarity, chance in RARITY_CHANCES:
-        current += chance
-        if roll <= current:
-            return rarity
-    return "Common"
-
-def get_random_car():
-    rarity = pick_rarity()
-    pool = [c for c in CARS if c["rarity"] == rarity]
-    if not pool:
-        pool = [c for c in CARS if c["rarity"] == "Common"]
-        rarity = "Common"
-    car = random.choice(pool)
-    return car["name"], rarity
 
 def header():
     return "🚗 **CarCase**\n━━━━━━━━━━━━"
 
 def footer():
     return "━━━━━━━━━━━━"
-
-def rarity_line(rarity):
-    return f"{RARITY_EMOJI.get(rarity, '')} **{rarity}**"
 
 # =========================
 # /start
@@ -106,67 +89,106 @@ async def start(message: Message):
         text = (
             f"{header()}\n\n"
             "Добро пожаловать в мир коллекционных автомобилей.\n\n"
-            "Открывай кейсы.\n"
-            "Собирай редкие машины.\n"
-            "Продавай и зарабатывай.\n\n"
-            "🎁 **Тебе выдан стартовый доступ.**\n"
+            "🎁 **Тебе выдан 1 Обычный кейс.**\n"
             "Напиши: **открыть кейс**\n\n"
             f"{footer()}"
         )
     else:
         text = (
             f"{header()}\n\n"
-            "С возвращением в мир CarCase.\n\n"
-            "Напиши: **открыть кейс** или **мой гараж**\n\n"
+            "С возвращением в CarCase.\n\n"
+            "Напиши: **кейсы** или **открыть кейс**\n\n"
             f"{footer()}"
         )
 
     await message.answer(text, parse_mode="Markdown")
 
 # =========================
-# Открытие кейса
+# Магазин
 # =========================
 
-@dp.message(F.text.lower().in_(["открыть кейс", "кейс", "/open"]))
-async def open_case(message: Message):
+@dp.message(F.text.lower().in_(["кейсы", "/shop"]))
+async def shop(message: Message):
     user = get_user(message.from_user.id)
     if not user:
+        await message.answer("Напиши /start")
+        return
+
+    await message.answer(
+        f"{header()}\n\n"
+        "📦 **МАГАЗИН КЕЙСОВ**\n\n"
+        f"📦 Обычный кейс — **{CASE_PRICE_COMMON} Coins**\n"
+        "Внутри: ⚪ Обычные и 🔵 Редкие машины\n\n"
+        "Напиши:\n"
+        "**купить обычный**\n\n"
+        f"{footer()}",
+        parse_mode="Markdown"
+    )
+
+# =========================
+# Покупка
+# =========================
+
+@dp.message(F.text.lower() == "купить обычный")
+async def buy_common(message: Message):
+    user = get_user(message.from_user.id)
+
+    if user["coins"] < CASE_PRICE_COMMON:
         await message.answer(
             f"{header()}\n\n"
-            "Ты ещё не зарегистрирован.\n"
-            "Напиши **/start**, чтобы начать игру.\n\n"
+            "❌ Недостаточно Coins.\n\n"
+            f"Нужно: {CASE_PRICE_COMMON}\n"
+            f"У тебя: {user['coins']}\n\n"
             f"{footer()}",
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
         return
 
-    last_time = user["last_case_time"]
-    if last_time:
-        last_time = datetime.fromisoformat(last_time)
-        if datetime.utcnow() - last_time < CASE_COOLDOWN:
-            remaining = CASE_COOLDOWN - (datetime.utcnow() - last_time)
-            minutes = int(remaining.total_seconds() // 60)
-            await message.answer(
-                f"{header()}\n\n"
-                "⏳ **Кейс ещё на перезарядке.**\n\n"
-                f"Попробуй снова через **{minutes} мин.**\n\n"
-                f"{footer()}",
-                parse_mode="Markdown",
-            )
-            return
+    set_user_coins(user["user_id"], user["coins"] - CASE_PRICE_COMMON)
+    add_common_case(user["user_id"], 1)
 
-    car_name, rarity = get_random_car()
-    add_car_to_garage(message.from_user.id, car_name, rarity)
-    update_last_case_time(message.from_user.id)
+    await message.answer(
+        f"{header()}\n\n"
+        "📦 Ты купил **Обычный кейс**.\n\n"
+        "Напиши: **открыть кейс**\n\n"
+        f"{footer()}",
+        parse_mode="Markdown"
+    )
+
+# =========================
+# Открытие кейса
+# =========================
+
+@dp.message(F.text.lower().in_(["открыть кейс", "/open"]))
+async def open_case(message: Message):
+    user = get_user(message.from_user.id)
+
+    if user["cases_common"] <= 0:
+        await message.answer(
+            f"{header()}\n\n"
+            "У тебя нет кейсов.\n"
+            "Зайди в магазин: **кейсы**\n\n"
+            f"{footer()}",
+            parse_mode="Markdown"
+        )
+        return
+
+    remove_common_case(user["user_id"], 1)
+
+    roll = random.randint(1, 100)
+    rarity = "Rare" if roll <= 20 else "Common"
+    pool = [c for c in CARS if c["rarity"] == rarity]
+    car = random.choice(pool)
+
+    add_car_to_garage(user["user_id"], car["name"], rarity)
 
     await message.answer(
         f"{header()}\n\n"
         "🎁 **КЕЙС ОТКРЫТ**\n\n"
-        "🚘 **Выпала машина:**\n"
-        f"**{car_name}**\n\n"
-        f"Редкость: {RARITY_EMOJI.get(rarity)} **{rarity}**\n\n"
+        f"🚘 Выпала машина:\n**{car['name']}**\n\n"
+        f"Редкость: {RARITY_EMOJI[rarity]} **{rarity}**\n\n"
         f"{footer()}",
-        parse_mode="Markdown",
+        parse_mode="Markdown"
     )
 
 # =========================
@@ -176,41 +198,31 @@ async def open_case(message: Message):
 @dp.message(F.text.lower().in_(["мой гараж", "гараж", "/garage"]))
 async def garage(message: Message):
     user = get_user(message.from_user.id)
-    if not user:
-        await message.answer(
-            f"{header()}\n\n"
-            "Ты ещё не зарегистрирован.\n"
-            "Напиши **/start**, чтобы начать игру.\n\n"
-            f"{footer()}",
-            parse_mode="Markdown",
-        )
-        return
+    cars = get_user_garage(user["user_id"])
 
-    cars = get_user_garage(message.from_user.id)
     if not cars:
         await message.answer(
             f"{header()}\n\n"
             "Твой гараж пуст.\n"
-            "Открой кейс, чтобы получить первую машину.\n\n"
+            "Открой кейс.\n\n"
             f"{footer()}",
-            parse_mode="Markdown",
+            parse_mode="Markdown"
         )
         return
 
     grouped = {}
-    for car in cars:
-        grouped.setdefault(car["rarity"], []).append(car["name"])
+    for c in cars:
+        grouped.setdefault(c["rarity"], []).append(c["name"])
 
-    lines = [f"{header()}\n", "🏁 **ТВОЙ ГАРАЖ**\n"]
+    text = f"{header()}\n\n🏁 **ТВОЙ ГАРАЖ**\n"
     for rarity in ["Legendary", "Epic", "Rare", "Common"]:
         if rarity in grouped:
-            lines.append(f"\n{RARITY_EMOJI.get(rarity)} **{rarity}**")
+            text += f"\n{RARITY_EMOJI.get(rarity)} **{rarity}**\n"
             for name in grouped[rarity]:
-                lines.append(f"• {name}")
+                text += f"• {name}\n"
 
-    lines.append(f"\n{footer()}")
-
-    await message.answer("\n".join(lines), parse_mode="Markdown")
+    text += f"\n{footer()}"
+    await message.answer(text, parse_mode="Markdown")
 
 # =========================
 # Баланс
@@ -219,22 +231,12 @@ async def garage(message: Message):
 @dp.message(F.text.lower().in_(["баланс", "/balance"]))
 async def balance(message: Message):
     user = get_user(message.from_user.id)
-    if not user:
-        await message.answer(
-            f"{header()}\n\n"
-            "Ты ещё не зарегистрирован.\n"
-            "Напиши **/start**, чтобы начать игру.\n\n"
-            f"{footer()}",
-            parse_mode="Markdown",
-        )
-        return
-
     await message.answer(
         f"{header()}\n\n"
-        "💰 **ТВОЙ БАЛАНС**\n\n"
-        f"Coins: **{user['coins']}**\n\n"
+        f"💰 Coins: **{user['coins']}**\n"
+        f"📦 Обычных кейсов: **{user['cases_common']}**\n\n"
         f"{footer()}",
-        parse_mode="Markdown",
+        parse_mode="Markdown"
     )
 
 # =========================
