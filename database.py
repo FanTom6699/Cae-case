@@ -1,86 +1,149 @@
-import aiosqlite
-import time
+import sqlite3
+from datetime import datetime
 
-class Database:
-    def __init__(self, db_path: str = "carcase.db"):
-        self.db_path = db_path
+DB_NAME = "database.db"
 
-    async def create_tables(self):
-        """Инициализация таблиц и обновление структуры при необходимости."""
-        async with aiosqlite.connect(self.db_path) as db:
-            # Таблица пользователей
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    user_id INTEGER PRIMARY KEY,
-                    username TEXT,
-                    coins INTEGER DEFAULT 1000,
-                    last_case_time INTEGER DEFAULT 0
-                )
-            """)
-            
-            # Обновление существующей таблицы (на случай, если колонка last_case_time отсутствует)
-            try:
-                await db.execute("ALTER TABLE users ADD COLUMN last_case_time INTEGER DEFAULT 0")
-            except aiosqlite.OperationalError:
-                pass # Колонка уже существует
+def get_connection():
+    return sqlite3.connect(DB_NAME)
 
-            # Таблица гаража
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS garage (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    car_name TEXT,
-                    rarity TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id)
-                )
-            """)
-            await db.commit()
+def init_db():
+    conn = get_connection()
+    cur = conn.cursor()
 
-    async def user_exists(self, user_id: int):
-        """Проверка, зарегистрирован ли игрок."""
-        async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT 1 FROM users WHERE user_id = ?", (user_id,)) as cursor:
-                result = await cursor.fetchone()
-                return result is not None
+    # Users
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        coins INTEGER DEFAULT 0,
+        last_case_time TEXT
+    )
+    """)
 
-    async def add_user(self, user_id: int, username: str):
-        """Регистрация нового игрока."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT OR IGNORE INTO users (user_id, username, last_case_time) VALUES (?, ?, 0)",
-                (user_id, username)
-            )
-            await db.commit()
+    # Garage
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS garage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        car_name TEXT,
+        rarity TEXT,
+        obtained_at TEXT
+    )
+    """)
 
-    async def get_user(self, user_id: int):
-        """Получение данных профиля пользователя."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT * FROM users WHERE user_id = ?", (user_id,)) as cursor:
-                return await cursor.fetchone()
+    # === МИГРАЦИЯ: добавляем инвентарь кейсов ===
+    # Проверяем, есть ли колонка cases_common
+    cur.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cur.fetchall()]
 
-    async def update_last_case_time(self, user_id: int):
-        """Запись времени последнего открытия кейса."""
-        async with aiosqlite.connect(self.db_path) as db:
-            current_time = int(time.time())
-            await db.execute("UPDATE users SET last_case_time = ? WHERE user_id = ?", (current_time, user_id))
-            await db.commit()
+    if "cases_common" not in columns:
+        cur.execute("ALTER TABLE users ADD COLUMN cases_common INTEGER DEFAULT 0")
 
-    async def add_car_to_garage(self, user_id: int, car_name: str, rarity: str):
-        """Добавление автомобиля в коллекцию игрока."""
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT INTO garage (user_id, car_name, rarity) VALUES (?, ?, ?)",
-                (user_id, car_name, rarity)
-            )
-            await db.commit()
+    conn.commit()
+    conn.close()
 
-    async def get_user_garage(self, user_id: int):
-        """Получение списка всех машин в гараже пользователя."""
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("SELECT car_name, rarity FROM garage WHERE user_id = ?", (user_id,)) as cursor:
-                return await cursor.fetchall()
 
-# Глобальный объект для использования в bot.py
-db = Database()
+# =========================
+# USERS
+# =========================
+
+def add_user(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT OR IGNORE INTO users (user_id, coins, cases_common) VALUES (?, ?, ?)",
+        (user_id, 0, 1)  # 1 стартовый обычный кейс
+    )
+    conn.commit()
+    conn.close()
+
+def get_user(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id, coins, last_case_time, cases_common FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return {
+        "user_id": row[0],
+        "coins": row[1],
+        "last_case_time": row[2],
+        "cases_common": row[3]
+    }
+
+def update_user_coins(user_id, amount):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET coins = coins + ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+def set_user_coins(user_id, amount):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET coins = ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+
+# =========================
+# CASES
+# =========================
+
+def add_common_case(user_id, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET cases_common = cases_common + ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+def remove_common_case(user_id, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET cases_common = cases_common - ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+
+# =========================
+# GARAGE
+# =========================
+
+def add_car_to_garage(user_id, car_name, rarity):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO garage (user_id, car_name, rarity, obtained_at) VALUES (?, ?, ?, ?)",
+        (user_id, car_name, rarity, datetime.utcnow().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+def get_user_garage(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT car_name, rarity FROM garage WHERE user_id = ? ORDER BY id DESC",
+        (user_id,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [{"name": r[0], "rarity": r[1]} for r in rows]
+
+
+# =========================
+# CASE COOLDOWN (если нужен)
+# =========================
+
+def update_last_case_time(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET last_case_time = ? WHERE user_id = ?",
+        (datetime.utcnow().isoformat(), user_id)
+    )
+    conn.commit()
+    conn.close()
