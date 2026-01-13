@@ -1,16 +1,16 @@
 import asyncio
 import os
 import random
+import json
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from dotenv import load_dotenv
 
 from database import (
     init_db,
     add_user,
     get_user,
-    update_user_coins,
     set_user_coins,
     add_common_case,
     remove_common_case,
@@ -25,49 +25,26 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # =========================
+# Загрузка карт
+# =========================
+
+with open("cards.json", "r", encoding="utf-8") as f:
+    CARDS = json.load(f)
+
+COMMON_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Common"]
+
+# =========================
 # Конфигурация
 # =========================
 
 CASE_PRICE_COMMON = 1000
 
-RARITY_EMOJI = {
-    "Common": "⚪",
-    "Rare": "🔵",
-    "Epic": "🟣",
-    "Legendary": "💎",
+RARITY_UI = {
+    "Common": {"emoji": "⚪", "name": "Обычная"},
 }
-
-RARITY_SELL_PRICE = {
-    "Common": 200,
-    "Rare": 1000,
-    "Epic": 5000,
-    "Legendary": 50000,
-}
-
-CARS = [
-    {"name": "Toyota Camry", "rarity": "Common"},
-    {"name": "Honda Civic", "rarity": "Common"},
-    {"name": "Ford Focus", "rarity": "Common"},
-    {"name": "Volkswagen Golf", "rarity": "Common"},
-    {"name": "Hyundai Solaris", "rarity": "Common"},
-    {"name": "Kia Rio", "rarity": "Common"},
-    {"name": "Lada Vesta", "rarity": "Common"},
-
-    {"name": "Nissan Skyline GT-R", "rarity": "Rare"},
-    {"name": "Subaru Impreza", "rarity": "Rare"},
-    {"name": "BMW M3 E46", "rarity": "Rare"},
-    {"name": "Toyota Supra", "rarity": "Rare"},
-    {"name": "Mitsubishi Lancer Evo", "rarity": "Rare"},
-    {"name": "Audi TT", "rarity": "Rare"},
-]
-
-RARITY_CHANCES = [
-    ("Rare", 20),
-    ("Common", 80),
-]
 
 # =========================
-# Утилиты UI
+# UI
 # =========================
 
 def header():
@@ -118,7 +95,7 @@ async def shop(message: Message):
         f"{header()}\n\n"
         "📦 **МАГАЗИН КЕЙСОВ**\n\n"
         f"📦 Обычный кейс — **{CASE_PRICE_COMMON} Coins**\n"
-        "Внутри: ⚪ Обычные и 🔵 Редкие машины\n\n"
+        "Внутри: ⚪ Обычные машины\n\n"
         "Напиши:\n"
         "**купить обычный**\n\n"
         f"{footer()}",
@@ -175,19 +152,23 @@ async def open_case(message: Message):
 
     remove_common_case(user["user_id"], 1)
 
-    roll = random.randint(1, 100)
-    rarity = "Rare" if roll <= 20 else "Common"
-    pool = [c for c in CARS if c["rarity"] == rarity]
-    car = random.choice(pool)
+    card_id = random.choice(COMMON_CARDS)
+    card = CARDS[card_id]
 
-    add_car_to_garage(user["user_id"], car["name"], rarity)
+    add_car_to_garage(user["user_id"], card_id, "Common")
 
-    await message.answer(
-        f"{header()}\n\n"
-        "🎁 **КЕЙС ОТКРЫТ**\n\n"
-        f"🚘 Выпала машина:\n**{car['name']}**\n\n"
-        f"Редкость: {RARITY_EMOJI[rarity]} **{rarity}**\n\n"
-        f"{footer()}",
+    image = FSInputFile(card["image"])
+    rar = RARITY_UI["Common"]
+
+    await message.answer_photo(
+        image,
+        caption=(
+            f"{header()}\n\n"
+            "🎁 **КЕЙС ОТКРЫТ**\n\n"
+            f"🚘 Выпала машина:\n**{card['name_ru']}**\n\n"
+            f"Редкость: {rar['emoji']} **{rar['name']}**\n\n"
+            f"{footer()}"
+        ),
         parse_mode="Markdown"
     )
 
@@ -210,16 +191,13 @@ async def garage(message: Message):
         )
         return
 
-    grouped = {}
-    for c in cars:
-        grouped.setdefault(c["rarity"], []).append(c["name"])
-
     text = f"{header()}\n\n🏁 **ТВОЙ ГАРАЖ**\n"
-    for rarity in ["Legendary", "Epic", "Rare", "Common"]:
-        if rarity in grouped:
-            text += f"\n{RARITY_EMOJI.get(rarity)} **{rarity}**\n"
-            for name in grouped[rarity]:
-                text += f"• {name}\n"
+
+    for c in cars:
+        card = CARDS.get(c["name"])
+        if not card:
+            continue
+        text += f"⚪ {card['name_ru']} (Обычная)\n"
 
     text += f"\n{footer()}"
     await message.answer(text, parse_mode="Markdown")
