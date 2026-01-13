@@ -1,0 +1,86 @@
+{
+  "toyota_camry": {
+    "name_ru": "Тойота Камри",
+    "name_en": "Toyota Camry",
+    "rarity": "Common",
+    "image": "common/toyota_camry.png"
+  },
+  "honda_civic": {
+    "name_ru": "Хонда Сивик",
+    "name_en": "Honda Civic",
+    "rarity": "Common",
+    "image": "common/honda_civic.png"
+  },
+  "ford_focus": {
+    "name_ru": "Форд Фокус",
+    "name_en": "Ford Focus",
+    "rarity": "Common",
+    "image": "common/ford_focus.png"
+  },
+  "volkswagen_golf": {
+    "name_ru": "Фольксваген Гольф",
+    "name_en": "Volkswagen Golf",
+    "rarity": "Common",
+    "image": "common/volkswagen_golf.png"
+  },
+  "hyundai_solaris": {
+    "name_ru": "Хендай Солярис",
+    "name_en": "Hyundai Solaris",
+    "rarity": "Common",
+    "image": "common/hyundai_solaris.png"
+  },
+  "kia_rio": {
+    "name_ru": "Киа Рио",
+    "name_en": "Kia Rio",
+    "rarity": "Common",
+    "image": "common/kia_rio.png"
+  },
+  "lada_vesta": {
+    "name_ru": "Лада Веста",
+    "name_en": "Lada Vesta",
+    "rarity": "Common",
+    "image": "common/lada_vesta.png"
+  },
+  "lada_granta": {
+    "name_ru": "Лада Гранта",
+    "name_en": "Lada Granta",
+    "rarity": "Common",
+    "image": "common/lada_granta.png"
+  },
+  "uaz_patriot": {
+    "name_ru": "УАЗ Патриот",
+    "name_en": "UAZ Patriot",
+    "rarity": "Common",
+    "image": "common/uaz_patriot.png"
+  },
+  "vaz_2101": {
+    "name_ru": "ВАЗ-2101",
+    "name_en": "VAZ-2101",
+    "rarity": "Common",
+    "image": "common/vaz_2101.png"
+  },
+  "vaz_2106": {
+    "name_ru": "ВАЗ-2106",
+    "name_en": "VAZ-2106",
+    "rarity": "Common",
+    "image": "common/vaz_2106.png"
+  },
+  "vaz_2107": {
+    "name_ru": "ВАЗ-2107",
+    "name_en": "VAZ-2107",
+    "rarity": "Common",
+    "image": "common/vaz_2107.png"
+  },
+  "moskvich_412": {
+    "name_ru": "Москвич-412",
+    "name_en": "Moskvich-412",
+    "rarity": "Common",
+    "image": "common/moskvich_412.png"
+  },
+  "gaz_24_volga": {
+    "name_ru": "ГАЗ-24 Волга",
+    "name_en": "GAZ-24 Volga",
+    "rarity": "Common",
+    "image": "common/gaz_24_volga.png"
+  }
+}
