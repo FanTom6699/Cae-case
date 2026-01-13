@@ -2,9 +2,11 @@ import asyncio
 import os
 import random
 import json
+from datetime import datetime, timedelta
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, FSInputFile
+from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from dotenv import load_dotenv
 
 from database import (
@@ -12,6 +14,8 @@ from database import (
     add_user,
     get_user,
     set_user_coins,
+    update_user_coins,
+    set_daily,
     add_common_case,
     remove_common_case,
     add_car_to_garage,
@@ -43,6 +47,8 @@ RARITY_UI = {
     "Common": {"emoji": "⚪", "name": "Обычная"},
 }
 
+DAILY_REWARDS = [300, 400, 500, 700, 1000, 1500, 2500]
+
 # =========================
 # UI
 # =========================
@@ -52,6 +58,19 @@ def header():
 
 def footer():
     return "━━━━━━━━━━━━"
+
+HELP_TEXT = (
+    "🚗 **CarCase — помощь**\n"
+    "━━━━━━━━━━━━\n\n"
+    "📦 `кейсы` — магазин кейсов\n"
+    "📦 `купить обычный` — купить кейс\n"
+    "🎁 `открыть кейс` — открыть кейс\n\n"
+    "🚘 `гараж` — твои машины\n"
+    "💰 `баланс` — твои Coins\n"
+    "🎁 `/daily` — ежедневная награда\n\n"
+    "Открывай кейсы, собирай машины и зарабатывай Coins.\n"
+    "━━━━━━━━━━━━"
+)
 
 # =========================
 # /start
@@ -79,6 +98,73 @@ async def start(message: Message):
         )
 
     await message.answer(text, parse_mode="Markdown")
+
+# =========================
+# Help
+# =========================
+
+@dp.message(F.text.lower().in_(["/help", "помощь"]))
+async def help_cmd(message: Message):
+    await message.answer(HELP_TEXT, parse_mode="Markdown")
+
+# =========================
+# Daily
+# =========================
+
+@dp.message(Command("daily"))
+async def daily(message: Message):
+    user = get_user(message.from_user.id)
+    now = datetime.utcnow()
+
+    if user["last_daily"]:
+        last = datetime.fromisoformat(user["last_daily"])
+        if now - last < timedelta(hours=24):
+            left = timedelta(hours=24) - (now - last)
+            hours, remainder = divmod(int(left.total_seconds()), 3600)
+            minutes = remainder // 60
+            await message.answer(f"⏳ Ты уже забрал награду\nСледующая через {hours}ч {minutes}м")
+            return
+
+        if now - last > timedelta(hours=48):
+            streak = 0
+        else:
+            streak = user["daily_streak"]
+    else:
+        streak = 0
+
+    reward = DAILY_REWARDS[streak % len(DAILY_REWARDS)]
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎁 Забрать", callback_data=f"daily:{message.from_user.id}")]
+        ]
+    )
+
+    await message.answer(
+        f"🎁 **Ежедневная награда**\n\n"
+        f"📅 День: **{streak + 1}**\n"
+        f"💰 Награда: **{reward} Coins**",
+        reply_markup=kb,
+        parse_mode="Markdown"
+    )
+
+@dp.callback_query(F.data.startswith("daily:"))
+async def daily_claim(call: CallbackQuery):
+    _, uid = call.data.split(":")
+    if int(uid) != call.from_user.id:
+        await call.answer("Это не твоя награда", show_alert=True)
+        return
+
+    user = get_user(call.from_user.id)
+    now = datetime.utcnow()
+
+    streak = user["daily_streak"] + 1
+    reward = DAILY_REWARDS[(streak - 1) % len(DAILY_REWARDS)]
+
+    update_user_coins(user["user_id"], reward)
+    set_daily(user["user_id"], streak, now.isoformat())
+
+    await call.message.edit_text(f"✅ {call.from_user.first_name} забрал **{reward} Coins**", parse_mode="Markdown")
 
 # =========================
 # Магазин
