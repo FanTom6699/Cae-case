@@ -30,13 +30,18 @@ def init_db():
     )
     """)
 
-    # === МИГРАЦИЯ: добавляем инвентарь кейсов ===
-    # Проверяем, есть ли колонка cases_common
+    # Migrations
     cur.execute("PRAGMA table_info(users)")
     columns = [col[1] for col in cur.fetchall()]
 
     if "cases_common" not in columns:
         cur.execute("ALTER TABLE users ADD COLUMN cases_common INTEGER DEFAULT 0")
+
+    if "daily_streak" not in columns:
+        cur.execute("ALTER TABLE users ADD COLUMN daily_streak INTEGER DEFAULT 0")
+
+    if "last_daily" not in columns:
+        cur.execute("ALTER TABLE users ADD COLUMN last_daily TEXT")
 
     conn.commit()
     conn.close()
@@ -50,8 +55,8 @@ def add_user(user_id):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "INSERT OR IGNORE INTO users (user_id, coins, cases_common) VALUES (?, ?, ?)",
-        (user_id, 0, 1)  # 1 стартовый обычный кейс
+        "INSERT OR IGNORE INTO users (user_id, coins, cases_common, daily_streak) VALUES (?, ?, ?, ?)",
+        (user_id, 0, 1, 0)
     )
     conn.commit()
     conn.close()
@@ -59,7 +64,10 @@ def add_user(user_id):
 def get_user(user_id):
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT user_id, coins, last_case_time, cases_common FROM users WHERE user_id = ?", (user_id,))
+    cur.execute(
+        "SELECT user_id, coins, last_case_time, cases_common, daily_streak, last_daily FROM users WHERE user_id = ?",
+        (user_id,)
+    )
     row = cur.fetchone()
     conn.close()
 
@@ -70,7 +78,9 @@ def get_user(user_id):
         "user_id": row[0],
         "coins": row[1],
         "last_case_time": row[2],
-        "cases_common": row[3]
+        "cases_common": row[3],
+        "daily_streak": row[4],
+        "last_daily": row[5],
     }
 
 def update_user_coins(user_id, amount):
@@ -84,6 +94,16 @@ def set_user_coins(user_id, amount):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("UPDATE users SET coins = ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+def set_daily(user_id, streak, date):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET daily_streak = ?, last_daily = ? WHERE user_id = ?",
+        (streak, date, user_id)
+    )
     conn.commit()
     conn.close()
 
@@ -132,18 +152,3 @@ def get_user_garage(user_id):
     conn.close()
 
     return [{"name": r[0], "rarity": r[1]} for r in rows]
-
-
-# =========================
-# CASE COOLDOWN (если нужен)
-# =========================
-
-def update_last_case_time(user_id):
-    conn = get_connection()
-    cur = conn.cursor()
-    cur.execute(
-        "UPDATE users SET last_case_time = ? WHERE user_id = ?",
-        (datetime.utcnow().isoformat(), user_id)
-    )
-    conn.commit()
-    conn.close()
