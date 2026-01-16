@@ -1,150 +1,240 @@
 import asyncio
-import time
+import os
+import json
+import random
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.filters import Command
 from aiogram.types import (
     Message,
     CallbackQuery,
     InlineKeyboardMarkup,
     InlineKeyboardButton,
+    FSInputFile,
 )
-from aiogram.filters import CommandStart, Command
+from dotenv import load_dotenv
 
-# ================== НАСТРОЙКИ ==================
+from database import (
+    init_db,
+    add_user,
+    get_user,
+    set_user_coins,
+    add_common_case,
+    remove_common_case,
+    add_car_to_garage,
+    get_user_garage,
+    update_last_free_case_time,
+)
 
-TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"
+# =========================
+# INIT
+# =========================
 
-FREE_CASE_COOLDOWN = 5 * 60 * 60  # 5 часов
+load_dotenv()
+TOKEN = os.getenv("BOT_TOKEN")
 
-# ================== ПСЕВДО-БАЗА (временно) ==================
-# позже спокойно вынесем в database.py
-
-users = {}  # user_id -> dict
-
-
-def get_user(user_id: int):
-    if user_id not in users:
-        users[user_id] = {
-            "balance": 0,
-            "cars": [],
-            "last_free_case": 0,
-        }
-    return users[user_id]
-
-
-def update_last_free_case_time(user_id: int):
-    users[user_id]["last_free_case"] = int(time.time())
-
-
-# ================== КЛАВИАТУРЫ ==================
-
-def main_menu():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🚗 Гараж", callback_data="garage")],
-            [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="free_case")],
-        ]
-    )
-
-
-def back_to_menu():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⬅ Назад", callback_data="menu")]
-        ]
-    )
-
-
-# ================== БОТ ==================
-
-bot = Bot(TOKEN)
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+# =========================
+# DATA
+# =========================
 
-# ================== /start ==================
+with open("cards.json", "r", encoding="utf-8") as f:
+    CARDS = json.load(f)
 
-@dp.message(CommandStart())
+COMMON_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Common"]
+
+FREE_CASE_COOLDOWN = timedelta(hours=5)
+GARAGE_PAGE_SIZE = 5
+
+RARITY_EMOJI = {
+    "Common": "⚪",
+}
+
+# =========================
+# UI HELPERS
+# =========================
+
+def header():
+    return "🚗 <b>CarCase</b>\n━━━━━━━━━━━━"
+
+def footer():
+    return "━━━━━━━━━━━━"
+
+def main_menu_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")],
+            [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
+            [InlineKeyboardButton(text="💰 Баланс", callback_data="menu:balance")],
+        ]
+    )
+
+# =========================
+# UTILS
+# =========================
+
+def format_timedelta(td: timedelta):
+    total = int(td.total_seconds())
+    h = total // 3600
+    m = (total % 3600) // 60
+    return f"{h} ч {m} мин"
+
+def free_case_available(user):
+    if not user["last_free_case_time"]:
+        return True, None
+    last = datetime.fromisoformat(user["last_free_case_time"])
+    now = datetime.utcnow()
+    diff = now - last
+    if diff >= FREE_CASE_COOLDOWN:
+        return True, None
+    return False, FREE_CASE_COOLDOWN - diff
+
+# =========================
+# START
+# =========================
+
+@dp.message(Command("start"))
 async def start(message: Message):
     user = get_user(message.from_user.id)
+    if not user:
+        add_user(message.from_user.id)
+
     await message.answer(
-        f"👋 Привет!\n"
-        f"💰 Баланс: {user['balance']}\n\n"
-        f"Выбери действие:",
-        reply_markup=main_menu()
+        f"{header()}\n\n"
+        "Добро пожаловать.\n"
+        "Используй меню ниже.\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
     )
 
+# =========================
+# BALANCE
+# =========================
 
-# ================== МЕНЮ ==================
-
-@dp.callback_query(F.callback_data == "menu")
-async def menu(callback: CallbackQuery):
-    user = get_user(callback.from_user.id)
-    await callback.message.edit_text(
-        f"🏠 Главное меню\n"
-        f"💰 Баланс: {user['balance']}",
-        reply_markup=main_menu()
+@dp.callback_query(F.data == "menu:balance")
+async def balance(call: CallbackQuery):
+    user = get_user(call.from_user.id)
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        f"💰 Coins: <b>{user['coins']}</b>\n"
+        f"📦 Обычных кейсов: <b>{user['cases_common']}</b>\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
     )
-    await callback.answer()
+    await call.answer()
 
+# =========================
+# FREE CASE
+# =========================
 
-# ================== ГАРАЖ ==================
+@dp.callback_query(F.data == "menu:free")
+async def free_case(call: CallbackQuery):
+    user = get_user(call.from_user.id)
+    available, remaining = free_case_available(user)
 
-@dp.callback_query(F.callback_data == "garage")
-async def garage(callback: CallbackQuery):
-    user = get_user(callback.from_user.id)
-
-    if not user["cars"]:
-        text = "🚗 Гараж пуст"
-    else:
-        text = "🚗 Твои машины:\n"
-        for car in user["cars"]:
-            text += f"• {car}\n"
-
-    await callback.message.edit_text(
-        text,
-        reply_markup=back_to_menu()
-    )
-    await callback.answer()
-
-
-# ================== FREE CASE ==================
-
-@dp.callback_query(F.callback_data == "free_case")
-async def free_case(callback: CallbackQuery):
-    user = get_user(callback.from_user.id)
-    now = int(time.time())
-
-    last = user["last_free_case"]
-    remaining = FREE_CASE_COOLDOWN - (now - last)
-
-    if remaining > 0:
-        left = str(timedelta(seconds=remaining))
-        await callback.answer(
-            f"⏳ Кейс будет доступен через {left}",
-            show_alert=True
+    if not available:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "⏳ Бесплатный кейс недоступен\n\n"
+            f"Осталось: {format_timedelta(remaining)}\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
         )
+        await call.answer()
         return
 
-    # награда (пока common)
-    reward = 200
-    user["balance"] += reward
-    update_last_free_case_time(callback.from_user.id)
+    card_id = random.choice(COMMON_CARDS)
+    card = CARDS[card_id]
 
-    await callback.message.edit_text(
-        f"🎁 Ты открыл бесплатный кейс!\n"
-        f"💰 Получено: {reward}\n"
-        f"💰 Баланс: {user['balance']}",
-        reply_markup=main_menu()
+    add_car_to_garage(user["user_id"], card_id, "Common")
+    update_last_free_case_time(user["user_id"])
+
+    image = FSInputFile(card["image"])
+
+    await call.message.answer_photo(
+        image,
+        caption=(
+            f"{header()}\n\n"
+            "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
+            f"🚘 <b>{card['name_ru']}</b>\n"
+            f"Редкость: ⚪ Обычная\n\n"
+            f"{footer()}"
+        ),
+        parse_mode="HTML",
     )
-    await callback.answer()
+    await call.answer()
 
+# =========================
+# GARAGE (PAGINATION)
+# =========================
 
-# ================== ЗАПУСК ==================
+@dp.callback_query(F.data.startswith("menu:garage"))
+async def garage(call: CallbackQuery):
+    page = int(call.data.split(":")[2])
+    user = get_user(call.from_user.id)
+    cars = get_user_garage(user["user_id"])
+
+    if not cars:
+        await call.message.edit_text(
+            f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
+        await call.answer()
+        return
+
+    start = page * GARAGE_PAGE_SIZE
+    end = start + GARAGE_PAGE_SIZE
+    chunk = cars[start:end]
+
+    kb = []
+    for idx, car in enumerate(chunk, start=start):
+        card = CARDS[car["name"]]
+        kb.append([
+            InlineKeyboardButton(
+                text=f"{RARITY_EMOJI['Common']} {card['name_ru']}",
+                callback_data=f"car:view:{idx}"
+            )
+        ])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️", callback_data=f"menu:garage:{page-1}"))
+    if end < len(cars):
+        nav.append(InlineKeyboardButton("➡️", callback_data=f"menu:garage:{page+1}"))
+
+    if nav:
+        kb.append(nav)
+
+    kb.append([InlineKeyboardButton("🔙 Меню", callback_data="menu:balance")])
+
+    await call.message.edit_text(
+        f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+# =========================
+# GROUP COMMANDS (SAFE)
+# =========================
+
+@dp.message(F.chat.type != "private", Command("garage"))
+async def garage_group(message: Message):
+    await message.answer("🚗 Гараж доступен в личных сообщениях с ботом")
+
+# =========================
+# RUN
+# =========================
 
 async def main():
+    init_db()
     await dp.start_polling(bot)
-
 
 if __name__ == "__main__":
     asyncio.run(main())
