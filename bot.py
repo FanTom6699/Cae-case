@@ -1,14 +1,12 @@
 import asyncio
-import math
 import os
-from datetime import datetime
-
+import math
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import (
     Message,
     CallbackQuery,
     InlineKeyboardMarkup,
-    InlineKeyboardButton,
+    InlineKeyboardButton
 )
 from aiogram.filters import Command
 from dotenv import load_dotenv
@@ -18,7 +16,6 @@ from database import (
     add_user,
     get_user,
     get_user_garage,
-    add_car_to_garage,
     set_user_coins,
 )
 
@@ -53,114 +50,103 @@ SELL_PRICES = {
 }
 
 # =========================
-# КЛАВИАТУРЫ
+# КНОПКИ
 # =========================
 
-def main_menu_kb():
+def main_menu():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage")],
-        [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")]
+        [InlineKeyboardButton(text="🚗 Гараж", callback_data="garage:0")],
+        [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="free_case")]
     ])
 
 
-def garage_kb(cars, page: int, total_pages: int):
-    keyboard = []
+def garage_keyboard(cars, page, total_pages):
+    kb = []
 
     for car in cars:
         emoji = RARITY_EMOJI.get(car["rarity"], "⚪")
-        keyboard.append([
+        kb.append([
             InlineKeyboardButton(
                 text=f"{emoji} {car['name']}",
-                callback_data=f"garage:car:{car['id']}"
+                callback_data=f"car:{car['id']}"
             )
         ])
 
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅", callback_data=f"garage:page:{page-1}"))
+        nav.append(InlineKeyboardButton("⬅", callback_data=f"garage:{page-1}"))
 
-    nav.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="noop"))
+    nav.append(InlineKeyboardButton(f"{page+1}/{total_pages}", callback_data="ignore"))
 
     if page < total_pages - 1:
-        nav.append(InlineKeyboardButton("➡", callback_data=f"garage:page:{page+1}"))
+        nav.append(InlineKeyboardButton("➡", callback_data=f"garage:{page+1}"))
 
-    keyboard.append(nav)
-    keyboard.append([
-        InlineKeyboardButton("⬅ Назад", callback_data="menu:main")
-    ])
+    kb.append(nav)
+    kb.append([InlineKeyboardButton("⬅ В меню", callback_data="menu")])
 
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+    return InlineKeyboardMarkup(inline_keyboard=kb)
 
 
-def car_view_kb(car_id: int):
+def car_keyboard(car_id):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton("💸 Продать", callback_data=f"garage:sell:{car_id}")],
-        [InlineKeyboardButton("⬅ В гараж", callback_data="menu:garage")]
+        [InlineKeyboardButton("💸 Продать", callback_data=f"sell:{car_id}")],
+        [InlineKeyboardButton("⬅ В гараж", callback_data="garage:0")]
     ])
 
 # =========================
-# /start
+# START
 # =========================
 
 @dp.message(Command("start"))
 async def start(message: Message):
-    user = get_user(message.from_user.id)
-    if not user:
+    if not get_user(message.from_user.id):
         add_user(message.from_user.id)
 
     await message.answer(
         "🚗 **CarCase**\n\nВыбери действие:",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu(),
         parse_mode="Markdown"
     )
 
 # =========================
-# ГЛАВНОЕ МЕНЮ
+# МЕНЮ
 # =========================
 
-@dp.callback_query(F.data == "menu:main")
-async def back_to_main(callback: CallbackQuery):
+@dp.callback_query(F.data == "menu")
+async def back_to_menu(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.edit_text(
-        "🚗 **CarCase**\n\nВыбери действие:",
-        reply_markup=main_menu_kb(),
+    await callback.message.answer(
+        "🏠 **Главное меню**",
+        reply_markup=main_menu(),
         parse_mode="Markdown"
     )
 
 # =========================
-# ГАРАЖ (СПИСОК + ПАГИНАЦИЯ)
+# ГАРАЖ
 # =========================
 
-@dp.callback_query(F.data.startswith("menu:garage"))
-@dp.callback_query(F.data.startswith("garage:page"))
-async def open_garage(callback: CallbackQuery):
+@dp.callback_query(F.data.startswith("garage:"))
+async def garage(callback: CallbackQuery):
     await callback.answer()
 
+    page = int(callback.data.split(":")[1])
     user_id = callback.from_user.id
-    page = 0
 
-    if callback.data.startswith("garage:page"):
-        page = int(callback.data.split(":")[2])
+    cars = get_user_garage(user_id)
 
-    cars_all = get_user_garage(user_id)
-
-    if not cars_all:
-        await callback.message.edit_text(
-            "🚗 Твой гараж пуст",
-            reply_markup=main_menu_kb()
-        )
+    if not cars:
+        await callback.message.answer("🚗 Твой гараж пуст")
         return
 
-    total_pages = math.ceil(len(cars_all) / PER_PAGE)
+    total_pages = math.ceil(len(cars) / PER_PAGE)
     start = page * PER_PAGE
     end = start + PER_PAGE
-    cars_page = cars_all[start:end]
+    cars_page = cars[start:end]
 
-    await callback.message.edit_text(
+    await callback.message.answer(
         f"🚗 **ТВОЙ ГАРАЖ**\n"
-        f"Страница {page+1} из {total_pages}\n\n"
-        f"Выбери машину:",
-        reply_markup=garage_kb(cars_page, page, total_pages),
+        f"Страница {page+1} из {total_pages}",
+        reply_markup=garage_keyboard(cars_page, page, total_pages),
         parse_mode="Markdown"
     )
 
@@ -168,77 +154,71 @@ async def open_garage(callback: CallbackQuery):
 # ПРОСМОТР МАШИНЫ
 # =========================
 
-@dp.callback_query(F.data.startswith("garage:car"))
+@dp.callback_query(F.data.startswith("car:"))
 async def view_car(callback: CallbackQuery):
     await callback.answer()
 
+    car_id = int(callback.data.split(":")[1])
     user_id = callback.from_user.id
-    car_id = int(callback.data.split(":")[2])
 
     cars = get_user_garage(user_id)
     car = next((c for c in cars if c["id"] == car_id), None)
 
     if not car:
-        await callback.answer("Машина не найдена", show_alert=True)
+        await callback.message.answer("❌ Машина не найдена")
         return
 
     emoji = RARITY_EMOJI.get(car["rarity"], "⚪")
     price = SELL_PRICES.get(car["rarity"], 0)
 
-    await callback.message.edit_text(
+    await callback.message.answer(
         f"🚘 **{car['name']}**\n\n"
         f"Редкость: {emoji}\n"
-        f"Цена продажи: 💰 {price} Coins",
-        reply_markup=car_view_kb(car_id),
+        f"Цена продажи: 💰 {price}",
+        reply_markup=car_keyboard(car_id),
         parse_mode="Markdown"
     )
 
 # =========================
-# ПРОДАЖА МАШИНЫ
+# ПРОДАЖА
 # =========================
 
-@dp.callback_query(F.data.startswith("garage:sell"))
+@dp.callback_query(F.data.startswith("sell:"))
 async def sell_car(callback: CallbackQuery):
     await callback.answer()
 
+    car_id = int(callback.data.split(":")[1])
     user_id = callback.from_user.id
-    car_id = int(callback.data.split(":")[2])
 
     cars = get_user_garage(user_id)
     car = next((c for c in cars if c["id"] == car_id), None)
 
     if not car:
-        await callback.answer("Ошибка", show_alert=True)
+        await callback.message.answer("❌ Ошибка продажи")
         return
 
     price = SELL_PRICES.get(car["rarity"], 0)
     user = get_user(user_id)
+
     set_user_coins(user_id, user["coins"] + price)
 
-    # ⚠️ ВАЖНО
-    # Тут должна быть функция удаления машины из БД
-    # delete_car_from_garage(user_id, car_id)
+    # ⚠️ тут позже добавим удаление машины из БД
 
-    await callback.message.edit_text(
+    await callback.message.answer(
         f"✅ Машина продана\n💰 +{price} Coins",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("⬅ В гараж", callback_data="menu:garage")]
-        ])
+        reply_markup=main_menu()
     )
 
 # =========================
 # FREE CASE (ЗАГЛУШКА)
 # =========================
 
-@dp.callback_query(F.data == "menu:free")
+@dp.callback_query(F.data == "free_case")
 async def free_case(callback: CallbackQuery):
     await callback.answer()
-    await callback.message.edit_text(
-        "🎁 Бесплатный кейс\n\n"
-        "⏳ Механика будет добавлена следующим шагом",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton("⬅ В меню", callback_data="menu:main")]
-        ])
+    await callback.message.answer(
+        "🎁 Бесплатный кейс\n\n⏳ Скоро будет доступен",
+        reply_markup=main_menu()
     )
 
 # =========================
