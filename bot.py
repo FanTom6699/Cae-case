@@ -6,7 +6,12 @@ from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import (
+    Message,
+    FSInputFile,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from dotenv import load_dotenv
 
 from database import (
@@ -14,13 +19,16 @@ from database import (
     add_user,
     get_user,
     set_user_coins,
-    update_user_coins,
-    set_daily,
     add_common_case,
     remove_common_case,
     add_car_to_garage,
-    get_user_garage
+    get_user_garage,
+    update_last_free_case_time,
 )
+
+# =========================
+# INIT
+# =========================
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -29,7 +37,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # =========================
-# Загрузка карт
+# LOAD CARDS
 # =========================
 
 with open("cards.json", "r", encoding="utf-8") as f:
@@ -38,19 +46,18 @@ with open("cards.json", "r", encoding="utf-8") as f:
 COMMON_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Common"]
 
 # =========================
-# Конфигурация
+# CONFIG
 # =========================
 
 CASE_PRICE_COMMON = 1000
+FREE_CASE_COOLDOWN = timedelta(hours=5)
 
 RARITY_UI = {
     "Common": {"emoji": "⚪", "name": "Обычная"},
 }
 
-DAILY_REWARDS = [300, 400, 500, 700, 1000, 1500, 2500]
-
 # =========================
-# UI
+# UI HELPERS
 # =========================
 
 def header():
@@ -59,18 +66,41 @@ def header():
 def footer():
     return "━━━━━━━━━━━━"
 
-HELP_TEXT = (
-    "🚗 **CarCase — помощь**\n"
-    "━━━━━━━━━━━━\n\n"
-    "📦 `кейсы` — магазин кейсов\n"
-    "📦 `купить обычный` — купить кейс\n"
-    "🎁 `открыть кейс` — открыть кейс\n\n"
-    "🚘 `гараж` — твои машины\n"
-    "💰 `баланс` — твои Coins\n"
-    "🎁 `/daily` — ежедневная награда\n\n"
-    "Открывай кейсы, собирай машины и зарабатывай Coins.\n"
-    "━━━━━━━━━━━━"
-)
+def main_menu_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="free_case")],
+            [InlineKeyboardButton(text="📦 Кейсы", callback_data="shop")],
+            [InlineKeyboardButton(text="🚗 Гараж", callback_data="garage")],
+            [InlineKeyboardButton(text="💰 Баланс", callback_data="balance")],
+            [InlineKeyboardButton(text="ℹ️ Help", callback_data="help")],
+        ]
+    )
+
+# =========================
+# UTILS
+# =========================
+
+def get_free_case_status(user):
+    last_time = user["last_free_case_time"]
+    if not last_time:
+        return True, None
+
+    last_dt = datetime.fromisoformat(last_time)
+    now = datetime.utcnow()
+    diff = now - last_dt
+
+    if diff >= FREE_CASE_COOLDOWN:
+        return True, None
+
+    remaining = FREE_CASE_COOLDOWN - diff
+    return False, remaining
+
+def format_timedelta(td: timedelta):
+    total_seconds = int(td.total_seconds())
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    return f"{hours} ч {minutes} мин"
 
 # =========================
 # /start
@@ -86,110 +116,120 @@ async def start(message: Message):
             f"{header()}\n\n"
             "Добро пожаловать в мир коллекционных автомобилей.\n\n"
             "🎁 **Тебе выдан 1 Обычный кейс.**\n"
-            "Напиши: **открыть кейс**\n\n"
+            "Используй кнопки ниже.\n\n"
             f"{footer()}"
         )
     else:
         text = (
             f"{header()}\n\n"
-            "С возвращением в CarCase.\n\n"
-            "Напиши: **кейсы** или **открыть кейс**\n\n"
+            "С возвращением в **CarCase**.\n\n"
+            "Выбери действие:\n\n"
             f"{footer()}"
         )
 
-    await message.answer(text, parse_mode="Markdown")
+    await message.answer(text, reply_markup=main_menu_kb(), parse_mode="Markdown")
 
 # =========================
-# Help
+# FREE CASE (CALLBACK)
 # =========================
 
-@dp.message(F.text.lower().in_(["/help", "помощь"]))
-async def help_cmd(message: Message):
-    await message.answer(HELP_TEXT, parse_mode="Markdown")
+@dp.callback_query(F.data == "free_case")
+async def free_case_cb(call):
+    user = get_user(call.from_user.id)
+    available, remaining = get_free_case_status(user)
 
-# =========================
-# Daily
-# =========================
-
-@dp.message(Command("daily"))
-async def daily(message: Message):
-    user = get_user(message.from_user.id)
-    now = datetime.utcnow()
-
-    if user["last_daily"]:
-        last = datetime.fromisoformat(user["last_daily"])
-        if now - last < timedelta(hours=24):
-            left = timedelta(hours=24) - (now - last)
-            hours, remainder = divmod(int(left.total_seconds()), 3600)
-            minutes = remainder // 60
-            await message.answer(f"⏳ Ты уже забрал награду\nСледующая через {hours}ч {minutes}м")
-            return
-
-        if now - last > timedelta(hours=48):
-            streak = 0
-        else:
-            streak = user["daily_streak"]
-    else:
-        streak = 0
-
-    reward = DAILY_REWARDS[streak % len(DAILY_REWARDS)]
-
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🎁 Забрать", callback_data=f"daily:{message.from_user.id}")]
-        ]
-    )
-
-    await message.answer(
-        f"🎁 **Ежедневная награда**\n\n"
-        f"📅 День: **{streak + 1}**\n"
-        f"💰 Награда: **{reward} Coins**",
-        reply_markup=kb,
-        parse_mode="Markdown"
-    )
-
-@dp.callback_query(F.data.startswith("daily:"))
-async def daily_claim(call: CallbackQuery):
-    _, uid = call.data.split(":")
-    if int(uid) != call.from_user.id:
-        await call.answer("Это не твоя награда", show_alert=True)
+    if not available:
+        await call.message.answer(
+            f"{header()}\n\n"
+            "⏳ **Бесплатный кейс недоступен**\n\n"
+            f"До следующего открытия:\n🕒 {format_timedelta(remaining)}\n\n"
+            f"{footer()}",
+            parse_mode="Markdown",
+        )
+        await call.answer()
         return
 
-    user = get_user(call.from_user.id)
-    now = datetime.utcnow()
+    # OPEN FREE CASE
+    card_id = random.choice(COMMON_CARDS)
+    card = CARDS[card_id]
 
-    streak = user["daily_streak"] + 1
-    reward = DAILY_REWARDS[(streak - 1) % len(DAILY_REWARDS)]
+    add_car_to_garage(user["user_id"], card_id, "Common")
+    update_last_free_case_time(user["user_id"])
 
-    update_user_coins(user["user_id"], reward)
-    set_daily(user["user_id"], streak, now.isoformat())
+    image = FSInputFile(card["image"])
+    rar = RARITY_UI["Common"]
 
-    await call.message.edit_text(f"✅ {call.from_user.first_name} забрал **{reward} Coins**", parse_mode="Markdown")
+    await call.message.answer_photo(
+        image,
+        caption=(
+            f"{header()}\n\n"
+            "🎁 **БЕСПЛАТНЫЙ КЕЙС ОТКРЫТ**\n\n"
+            f"🚘 Выпала машина:\n**{card['name_ru']}**\n\n"
+            f"Редкость: {rar['emoji']} **{rar['name']}**\n\n"
+            f"{footer()}"
+        ),
+        parse_mode="Markdown",
+    )
+    await call.answer()
 
 # =========================
-# Магазин
+# FREE CASE (GROUP / TEXT)
+# =========================
+
+@dp.message(
+    F.text.lower().in_(["/freecase", "freecase", "free кейс", "бесплатный кейс"])
+)
+async def free_case_text(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        add_user(message.from_user.id)
+        user = get_user(message.from_user.id)
+
+    available, remaining = get_free_case_status(user)
+
+    if not available:
+        await message.answer(
+            "⏳ Бесплатный кейс недоступен\n"
+            f"До следующего открытия: {format_timedelta(remaining)}"
+        )
+        return
+
+    card_id = random.choice(COMMON_CARDS)
+    card = CARDS[card_id]
+
+    add_car_to_garage(user["user_id"], card_id, "Common")
+    update_last_free_case_time(user["user_id"])
+
+    await message.answer(
+        "🎁 **Бесплатный кейс открыт!**\n\n"
+        f"🚘 Выпала машина:\n**{card['name_ru']}**\n"
+        f"Редкость: ⚪ Обычная",
+        parse_mode="Markdown",
+    )
+
+# =========================
+# SHOP (TEXT)
 # =========================
 
 @dp.message(F.text.lower().in_(["кейсы", "/shop"]))
 async def shop(message: Message):
     user = get_user(message.from_user.id)
     if not user:
-        await message.answer("Напиши /start")
-        return
+        add_user(message.from_user.id)
+        user = get_user(message.from_user.id)
 
     await message.answer(
         f"{header()}\n\n"
         "📦 **МАГАЗИН КЕЙСОВ**\n\n"
         f"📦 Обычный кейс — **{CASE_PRICE_COMMON} Coins**\n"
         "Внутри: ⚪ Обычные машины\n\n"
-        "Напиши:\n"
-        "**купить обычный**\n\n"
+        "Команда:\n**купить обычный**\n\n"
         f"{footer()}",
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
 
 # =========================
-# Покупка
+# BUY COMMON
 # =========================
 
 @dp.message(F.text.lower() == "купить обычный")
@@ -198,28 +238,19 @@ async def buy_common(message: Message):
 
     if user["coins"] < CASE_PRICE_COMMON:
         await message.answer(
-            f"{header()}\n\n"
-            "❌ Недостаточно Coins.\n\n"
+            f"❌ Недостаточно Coins\n"
             f"Нужно: {CASE_PRICE_COMMON}\n"
-            f"У тебя: {user['coins']}\n\n"
-            f"{footer()}",
-            parse_mode="Markdown"
+            f"У тебя: {user['coins']}"
         )
         return
 
     set_user_coins(user["user_id"], user["coins"] - CASE_PRICE_COMMON)
     add_common_case(user["user_id"], 1)
 
-    await message.answer(
-        f"{header()}\n\n"
-        "📦 Ты купил **Обычный кейс**.\n\n"
-        "Напиши: **открыть кейс**\n\n"
-        f"{footer()}",
-        parse_mode="Markdown"
-    )
+    await message.answer("📦 Ты купил **Обычный кейс**", parse_mode="Markdown")
 
 # =========================
-# Открытие кейса
+# OPEN COMMON CASE
 # =========================
 
 @dp.message(F.text.lower().in_(["открыть кейс", "/open"]))
@@ -227,13 +258,7 @@ async def open_case(message: Message):
     user = get_user(message.from_user.id)
 
     if user["cases_common"] <= 0:
-        await message.answer(
-            f"{header()}\n\n"
-            "У тебя нет кейсов.\n"
-            "Зайди в магазин: **кейсы**\n\n"
-            f"{footer()}",
-            parse_mode="Markdown"
-        )
+        await message.answer("❌ У тебя нет кейсов")
         return
 
     remove_common_case(user["user_id"], 1)
@@ -244,7 +269,6 @@ async def open_case(message: Message):
     add_car_to_garage(user["user_id"], card_id, "Common")
 
     image = FSInputFile(card["image"])
-    rar = RARITY_UI["Common"]
 
     await message.answer_photo(
         image,
@@ -252,59 +276,71 @@ async def open_case(message: Message):
             f"{header()}\n\n"
             "🎁 **КЕЙС ОТКРЫТ**\n\n"
             f"🚘 Выпала машина:\n**{card['name_ru']}**\n\n"
-            f"Редкость: {rar['emoji']} **{rar['name']}**\n\n"
+            "Редкость: ⚪ **Обычная**\n\n"
             f"{footer()}"
         ),
-        parse_mode="Markdown"
+        parse_mode="Markdown",
     )
 
 # =========================
-# Гараж
+# GARAGE
 # =========================
 
-@dp.message(F.text.lower().in_(["мой гараж", "гараж", "/garage"]))
+@dp.message(F.text.lower().in_(["гараж", "/garage"]))
 async def garage(message: Message):
     user = get_user(message.from_user.id)
     cars = get_user_garage(user["user_id"])
 
     if not cars:
-        await message.answer(
-            f"{header()}\n\n"
-            "Твой гараж пуст.\n"
-            "Открой кейс.\n\n"
-            f"{footer()}",
-            parse_mode="Markdown"
-        )
+        await message.answer("🚗 Твой гараж пуст")
         return
 
-    text = f"{header()}\n\n🏁 **ТВОЙ ГАРАЖ**\n"
-
+    text = "🚗 **ТВОЙ ГАРАЖ**\n\n"
     for c in cars:
         card = CARDS.get(c["name"])
-        if not card:
-            continue
-        text += f"⚪ {card['name_ru']} (Обычная)\n"
+        if card:
+            text += f"⚪ {card['name_ru']}\n"
 
-    text += f"\n{footer()}"
     await message.answer(text, parse_mode="Markdown")
 
 # =========================
-# Баланс
+# BALANCE
 # =========================
 
 @dp.message(F.text.lower().in_(["баланс", "/balance"]))
 async def balance(message: Message):
     user = get_user(message.from_user.id)
     await message.answer(
-        f"{header()}\n\n"
         f"💰 Coins: **{user['coins']}**\n"
-        f"📦 Обычных кейсов: **{user['cases_common']}**\n\n"
-        f"{footer()}",
-        parse_mode="Markdown"
+        f"📦 Обычных кейсов: **{user['cases_common']}**",
+        parse_mode="Markdown",
     )
 
 # =========================
-# Запуск
+# HELP
+# =========================
+
+@dp.callback_query(F.data == "help")
+async def help_cb(call):
+    await call.message.answer(
+        f"{header()}\n\n"
+        "ℹ️ **Помощь**\n\n"
+        "🎁 Бесплатный кейс — раз в 5 часов\n"
+        "📦 Кейсы — покупка и открытие\n"
+        "🚗 Гараж — твои машины\n"
+        "💰 Баланс — Coins\n\n"
+        "В группе можно писать:\n"
+        "/freecase\n"
+        "/open\n"
+        "/garage\n"
+        "/balance\n\n"
+        f"{footer()}",
+        parse_mode="Markdown",
+    )
+    await call.answer()
+
+# =========================
+# RUN
 # =========================
 
 async def main():
