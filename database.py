@@ -177,7 +177,7 @@ def get_user_garage(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT car_name, rarity
+        SELECT id, car_name, rarity
         FROM garage
         WHERE user_id = ?
         ORDER BY id DESC
@@ -187,4 +187,24 @@ def get_user_garage(user_id):
     rows = cur.fetchall()
     conn.close()
 
-    return [{"name": r[0], "rarity": r[1]} for r in rows]
+    return [{"id": r[0], "name": r[1], "rarity": r[2]} for r in rows]
+
+
+def get_car_by_id(car_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT car_name, rarity, user_id
+        FROM garage
+        WHERE id = ?
+        """,
+        (car_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return {"name": row[0], "rarity": row[1], "user_id": row[2]}

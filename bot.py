@@ -25,6 +25,7 @@ from database import (
     add_car_to_garage,
     get_user_garage,
     update_last_free_case_time,
+    get_car_by_id,
 )
 
 # =========================
@@ -51,6 +52,9 @@ GARAGE_PAGE_SIZE = 5
 
 RARITY_EMOJI = {
     "Common": "⚪",
+    "Rare": "🔵",
+    "Epic": "🟣",
+    "Legendary": "🟡",
 }
 
 # =========================
@@ -154,7 +158,11 @@ async def free_case(call: CallbackQuery):
     add_car_to_garage(user["user_id"], card_id, "Common")
     update_last_free_case_time(user["user_id"])
 
-    image = FSInputFile(card["image"])
+    image_path = card["image"]
+    if not image_path.startswith("/") and not image_path.startswith("."):
+        image_path = f"./common/{image_path.split('/')[-1]}"
+    
+    image = FSInputFile(image_path)
 
     await call.message.answer_photo(
         image,
@@ -193,12 +201,13 @@ async def garage(call: CallbackQuery):
     chunk = cars[start:end]
 
     kb = []
-    for idx, car in enumerate(chunk, start=start):
+    for car in chunk:
         card = CARDS[car["name"]]
+        emoji = RARITY_EMOJI.get(car["rarity"], "❓")
         kb.append([
             InlineKeyboardButton(
-                text=f"{RARITY_EMOJI['Common']} {card['name_ru']}",
-                callback_data=f"car:view:{idx}"
+                text=f"{emoji} {card['name_ru']}",
+                callback_data=f"car:view:{car['id']}"
             )
         ])
 
@@ -220,6 +229,44 @@ async def garage(call: CallbackQuery):
     )
     await call.answer()
 
+
+# =========================
+# CAR VIEW
+# =========================
+
+@dp.callback_query(F.data.startswith("car:view"))
+async def car_view(call: CallbackQuery):
+    car_id = int(call.data.split(":")[2])
+    car = get_car_by_id(car_id)
+
+    if not car or car["user_id"] != call.from_user.id:
+        await call.answer("🚗 Машина не найдена", show_alert=True)
+        return
+
+    card = CARDS[car["name"]]
+    emoji = RARITY_EMOJI.get(car["rarity"], "❓")
+
+    image_path = card["image"]
+    if not image_path.startswith("/") and not image_path.startswith("."):
+        image_path = f"./common/{image_path.split('/')[-1]}"
+    
+    image = FSInputFile(image_path)
+
+    await call.message.answer_photo(
+        image,
+        caption=(
+            f"{header()}\n\n"
+            f"🚘 <b>{card['name_ru']}</b>\n"
+            f"Редкость: {emoji} {car['rarity']}\n\n"
+            f"{footer()}"
+        ),
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton("🔙 Назад", callback_data="menu:garage:0")]]
+        )
+    )
+    await call.answer()
+
 # =========================
 # GROUP COMMANDS (SAFE)
 # =========================
@@ -227,6 +274,51 @@ async def garage(call: CallbackQuery):
 @dp.message(F.chat.type != "private", Command("garage"))
 async def garage_group(message: Message):
     await message.answer("🚗 Гараж доступен в личных сообщениях с ботом")
+
+
+# =========================
+# GROUP TEXT TRIGGERS
+# =========================
+
+@dp.message(F.chat.type != "private", F.text.lower().regexp(r"(кейс|case|открыть|open)"))
+async def group_text_trigger(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        add_user(message.from_user.id)
+        user = get_user(message.from_user.id)
+
+    available, remaining = free_case_available(user)
+
+    if not available:
+        await message.answer(
+            f"⏳ {message.from_user.first_name}, бесплатный кейс недоступен\n\n"
+            f"Осталось: {format_timedelta(remaining)}"
+        )
+        return
+
+    card_id = random.choice(COMMON_CARDS)
+    card = CARDS[card_id]
+
+    add_car_to_garage(user["user_id"], card_id, "Common")
+    update_last_free_case_time(user["user_id"])
+
+    image_path = card["image"]
+    if not image_path.startswith("/") and not image_path.startswith("."):
+        image_path = f"./common/{image_path.split('/')[-1]}"
+    
+    image = FSInputFile(image_path)
+
+    await message.answer_photo(
+        image,
+        caption=(
+            f"{header()}\n\n"
+            f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+            f"🚘 <b>{card['name_ru']}</b>\n"
+            f"Редкость: ⚪ Обычная\n\n"
+            f"{footer()}"
+        ),
+        parse_mode="HTML",
+    )
 
 # =========================
 # RUN
