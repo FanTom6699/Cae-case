@@ -794,12 +794,18 @@ async def free_case(call: CallbackQuery):
     available, remaining = free_case_available(user)
 
     if not available:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+            ]
+        )
         await edit_message_text(
             call.message,
             f"{header()}\n\n"
             "⏳ Бесплатный кейс недоступен\n\n"
             f"Осталось: {format_timedelta(remaining)}\n\n"
             f"{footer()}",
+            reply_markup=kb,
             replace_photo=True,
         )
         await call.answer()
@@ -813,12 +819,18 @@ async def free_case(call: CallbackQuery):
             "free_case_no_cards user_id=%s",
             call.from_user.id,
         )
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+            ]
+        )
         await edit_message_text(
             call.message,
             f"{header()}\n\n"
             "🎯 <b>Коллекция полна!</b>\n\n"
             "Ты собрал все машины!\n\n"
             f"{footer()}",
+            reply_markup=kb,
             replace_photo=True,
         )
         await call.answer()
