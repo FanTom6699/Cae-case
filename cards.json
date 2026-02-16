@@ -52,7 +52,7 @@
     "name_ru": "Лада Гранта",
     "name_en": "Lada Granta",
     "rarity": "Common",
-    "image": "common/lada_granta.png",
+    "image": "common/lada.granta.png",
     "sell_price": 50
   },
   "uaz_patriot": {
@@ -87,7 +87,7 @@
     "name_ru": "Москвич-412",
     "name_en": "Moskvich-412",
     "rarity": "Common",
-    "image": "common/moskvich_412.png",
+    "image": "common/moskivich_412.jpg",
     "sell_price": 58
   },
   "gaz_24_volga": {
@@ -101,182 +101,182 @@
     "name_ru": "Мазда 3",
     "name_en": "Mazda 3",
     "rarity": "Common",
-    "image": "",
+    "image": "common/mazda_3.png",
     "sell_price": 78
   },
   "subaru_impreza": {
     "name_ru": "Субару Импреза",
     "name_en": "Subaru Impreza",
     "rarity": "Common",
-    "image": "",
+    "image": "common/subaru_impreza.png",
     "sell_price": 87
   },
   "toyota_corolla": {
     "name_ru": "Тойота Королла",
     "name_en": "Toyota Corolla",
     "rarity": "Common",
-    "image": "",
+    "image": "common/toyota_corolla.png",
     "sell_price": 82
   },
   "nissan_altima": {
     "name_ru": "Ниссан Альтима",
     "name_en": "Nissan Altima",
     "rarity": "Common",
-    "image": "",
+    "image": "common/nissan_altima.png",
     "sell_price": 72
   },
   "mitsubishi_lancer": {
     "name_ru": "Мицубиси Лансер",
     "name_en": "Mitsubishi Lancer",
     "rarity": "Common",
-    "image": "",
+    "image": "common/mitsubishi_lancer.png",
     "sell_price": 68
   },
   "chevrolet_cruze": {
     "name_ru": "Шевроле Крузе",
     "name_en": "Chevrolet Cruze",
     "rarity": "Common",
-    "image": "",
+    "image": "common/chevrolet_cruze.png",
     "sell_price": 62
   },
   "bmw_3_series": {
     "name_ru": "БМВ 3 Серия",
     "name_en": "BMW 3 Series",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/bmw_3_series.png",
     "sell_price": 310
   },
   "mercedes_c_class": {
     "name_ru": "Мерседес C-Класс",
     "name_en": "Mercedes-Benz C-Class",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/mercedes_c_class.png",
     "sell_price": 330
   },
   "audi_a4": {
     "name_ru": "Ауди A4",
     "name_en": "Audi A4",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/audi_a4.png",
     "sell_price": 290
   },
   "volkswagen_passat": {
     "name_ru": "Фольксваген Пассат",
     "name_en": "Volkswagen Passat",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/olkswagen_passat.png",
     "sell_price": 280
   },
   "skoda_superb": {
     "name_ru": "Шкода Суперб",
     "name_en": "Skoda Superb",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/skoda_superb.png",
     "sell_price": 270
   },
   "hyundai_sonata": {
     "name_ru": "Хендай Соната",
     "name_en": "Hyundai Sonata",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/hyundai_sonata.png",
     "sell_price": 260
   },
   "kia_optima": {
     "name_ru": "Киа Оптима",
     "name_en": "Kia Optima",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/kia_optima.png",
     "sell_price": 250
   },
   "honda_accord": {
     "name_ru": "Хонда Аккорд",
     "name_en": "Honda Accord",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/honda_accord.png",
     "sell_price": 320
   },
   "toyota_camry_new": {
     "name_ru": "Тойота Камри (новая)",
     "name_en": "Toyota Camry (new)",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/toyota_camry_new.png",
     "sell_price": 340
   },
   "nissan_maxima": {
     "name_ru": "Ниссан Максима",
     "name_en": "Nissan Maxima",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/nissan_maxima.png",
     "sell_price": 300
   },
   "mazda_6": {
     "name_ru": "Мазда 6",
     "name_en": "Mazda 6",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/mazda_6.png",
     "sell_price": 305
   },
   "subaru_legacy": {
     "name_ru": "Субару Лейси",
     "name_en": "Subaru Legacy",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/subaru_legacy.png",
     "sell_price": 315
   },
   "volvo_s60": {
     "name_ru": "Вольво S60",
     "name_en": "Volvo S60",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/volvo_s60.png",
     "sell_price": 325
   },
   "jaguar_xe": {
     "name_ru": "Ягуар XE",
     "name_en": "Jaguar XE",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/jaguar_xe.png",
     "sell_price": 335
   },
   "infiniti_q50": {
     "name_ru": "Инфинити Q50",
     "name_en": "Infiniti Q50",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/infiniti_q50.png",
     "sell_price": 295
   },
   "acura_tlx": {
     "name_ru": "Акура TLX",
     "name_en": "Acura TLX",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/acura_tlx.png",
     "sell_price": 285
   },
   "lexus_is": {
     "name_ru": "Лексус IS",
     "name_en": "Lexus IS",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/lexus_is.png",
     "sell_price": 350
   },
   "bmw_5_series": {
     "name_ru": "БМВ 5 Серия",
     "name_en": "BMW 5 Series",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/bmw_5_series.png",
     "sell_price": 360
   },
   "mercedes_e_class": {
     "name_ru": "Мерседес E-Класс",
     "name_en": "Mercedes-Benz E-Class",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/mercedes_e_class.png",
     "sell_price": 370
   },
   "audi_a6": {
     "name_ru": "Ауди A6",
     "name_en": "Audi A6",
     "rarity": "Rare",
-    "image": "",
+    "image": "rare/audi_a6.png",
     "sell_price": 355
   },
   "porsche_911": {

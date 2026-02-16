@@ -1,0 +1,62 @@
+﻿
+Rare | bmw_3_series | БМВ 3 Серия
+Rare | mercedes_c_class | Мерседес C-Класс
+Rare | audi_a4 | Ауди A4
+Rare | volkswagen_passat | Фольксваген Пассат
+Rare | skoda_superb | Шкода Суперб
+Rare | hyundai_sonata | Хендай Соната
+Rare | kia_optima | Киа Оптима
+Rare | honda_accord | Хонда Аккорд
+Rare | toyota_camry_new | Тойота Камри (новая)
+Rare | nissan_maxima | Ниссан Максима
+Rare | mazda_6 | Мазда 6
+Rare | subaru_legacy | Субару Лейси
+Rare | volvo_s60 | Вольво S60
+Rare | jaguar_xe | Ягуар XE
+Rare | infiniti_q50 | Инфинити Q50
+Rare | acura_tlx | Акура TLX
+Rare | lexus_is | Лексус IS
+Rare | bmw_5_series | БМВ 5 Серия
+Rare | mercedes_e_class | Мерседес E-Класс
+Rare | audi_a6 | Ауди A6
+Epic | porsche_911 | Порше 911
+Epic | lamborghini_huracan | Ламборджини Хуракан
+Epic | ferrari_sf90 | Феррари SF90
+Epic | mclaren_720s | МакЛарен 720S
+Epic | bugatti_divo | Бугатти Дивo
+Epic | pagani_huayra | Паганi Хуайра
+Epic | koenigsegg_jesko | Кёниггсегг Йеско
+Epic | ssc_tuatara | SSC Туатара
+Epic | hennessey_venom_f5 | Хеннесси Venom F5
+Epic | aspark_owl | Аспарк Сова
+Epic | rimac_concept_two | Римак Концепт Две
+Epic | lotus_evija | Лотус Эвиджа
+Epic | pininfarina_battista | Пининфарина Баттista
+Epic | dodge_viper | Додж Вайпер
+Epic | chevrolet_corvette_c8 | Шевроле Корвет C8
+Epic | nissan_gt_r | Ниссан GT-R
+Epic | toyota_supra | Тойота Супра
+Epic | subaru_wrx_sti | Субару WRX STI
+Epic | mitsubishi_lancer_evo | Мицубиси Лансер Эволюшн
+Epic | honda_nsx | Хонда NSX
+Legendary | bugatti_chiron | Бугатти Широн
+Legendary | lamborghini_veneno | Ламборджини Венено
+Legendary | ferrari_la_ferrari | Феррари La Ferrari
+Legendary | mclaren_f1 | МакЛарен F1
+Legendary | pagani_zonda | Паганi Зонда
+Legendary | koenigsegg_one_1 | Кёниггсегг One:1
+Legendary | hennessey_venom_gt | Хеннесси Venom GT
+Legendary | koenigsegg_agera_rs | Кёниггсегг Агера RS
+Legendary | 9ff_gt9 | 9ff GT9
+Legendary | gumpert_apollo | Гумперт Аполо
+Legendary | scc_ultimate_aero | SSC Ultimate Aero
+Legendary | zenvo_st1 | Zenvo ST1
+Legendary | lykan_hypersport | Ликан Гиперспорт
+Legendary | ferrari_250_gto | Феррари 250 GTO
+Legendary | bugatti_type_57 | Бугатти Тип 57
+Legendary | maybach_exelero | Майбах Exelero
+Legendary | rolls_royce_phantom | Роллс-Ройс Фантом
+Legendary | bentley_continental | Бентли Континенталь
+Legendary | mercedes_amg_gt_r | Мерседес-АМГ GT R
+Legendary | porsche_918_spyder | Порше 918 Спайдер
+Legendary | mclaren_p1 | МакЛарен P1
