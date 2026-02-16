@@ -322,8 +322,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         ]
     )
 
-    await delete_message_safe(call.message)
-    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
 
 def group_case_rate_limit_ok(chat_id, user_id):
@@ -404,13 +403,9 @@ async def feedback_menu(call: CallbackQuery):
         [InlineKeyboardButton(text=label, callback_data=f"feedback:cat:{slug}")]
         for slug, label in FEEDBACK_CATEGORIES
     ]
-    kb.append([
-        InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
-        InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
-    ])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")])
 
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n"
         "✍️ <b>Отзыв</b>\n\n"
         "Выбери категорию:\n\n"
@@ -431,16 +426,14 @@ async def feedback_category(call: CallbackQuery):
     category = dict(FEEDBACK_CATEGORIES).get(slug, "Другое")
     FEEDBACK_PENDING[call.from_user.id] = slug
 
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n"
         f"✍️ <b>Категория:</b> {category}\n\n"
         "Напиши сообщение одним текстом:\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[
-                InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
-                InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
+                InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance"),
             ]]
         ),
         parse_mode="HTML",
@@ -451,10 +444,9 @@ async def feedback_category(call: CallbackQuery):
 @dp.callback_query(F.data == "feedback:cancel")
 async def feedback_cancel(call: CallbackQuery):
     FEEDBACK_PENDING.pop(call.from_user.id, None)
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n"
-        "❌ Отзыв отменен\n\n"
+        "🔙 Назад в меню\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(),
         parse_mode="HTML",
@@ -613,8 +605,7 @@ async def balance(call: CallbackQuery):
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
     
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n"
         f"💰 <b>Coins:</b> {user['coins']}\n\n"
         f"{footer()}",
@@ -634,7 +625,7 @@ async def buy_cases_menu(call: CallbackQuery):
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
     
-    # Цены случаев (на основе средних цен машин)
+    # Цены случаев
     cases = {
         "standard": {
             "name": "Стандартный",
@@ -663,10 +654,9 @@ async def buy_cases_menu(call: CallbackQuery):
             )
         ])
 
-    kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")])
 
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n"
         "<b>💳 Магазин кейсов</b>\n\n"
         f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
@@ -825,11 +815,10 @@ async def free_case(call: CallbackQuery):
     if not available:
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")],
             ]
         )
-        await delete_message_safe(call.message)
-        await call.message.answer(
+        await call.message.edit_text(
             f"{header()}\n\n"
             "⏳ Бесплатный кейс недоступен\n\n"
             f"Осталось: {format_timedelta(remaining)}\n\n"
@@ -850,11 +839,10 @@ async def free_case(call: CallbackQuery):
         )
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")],
             ]
         )
-        await delete_message_safe(call.message)
-        await call.message.answer(
+        await call.message.edit_text(
             f"{header()}\n\n"
             "🎯 <b>Коллекция полна!</b>\n\n"
             "Ты собрал все машины!\n\n"
