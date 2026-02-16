@@ -18,7 +18,7 @@ from aiogram.types import (
     FSInputFile,
     ChatMemberUpdated,
     BotCommand,
-    BotCommandScope,
+    BotCommandScopeAllGroupChats,
 )
 from dotenv import load_dotenv
 
@@ -1777,7 +1777,7 @@ async def main():
             BotCommand(command="кейс", description="Открыть кейс"),
             BotCommand(command="топ", description="Топ игроков"),
         ],
-        scope=BotCommandScope(type="all_group_chats")
+        scope=BotCommandScopeAllGroupChats()
     )
     
     await dp.start_polling(bot)
