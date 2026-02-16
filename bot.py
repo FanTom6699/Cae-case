@@ -331,8 +331,8 @@ async def feedback_category(call: CallbackQuery):
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[
-                InlineKeyboardButton("❌ Отмена", callback_data="feedback:cancel"),
-                InlineKeyboardButton("🔙 Меню", callback_data="menu:balance"),
+                InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
+                InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
             ]]
         ),
         parse_mode="HTML",
@@ -494,7 +494,7 @@ async def buy_cases_menu(call: CallbackQuery):
             )
         ])
 
-    kb.append([InlineKeyboardButton("🔙 Меню", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -784,14 +784,14 @@ async def garage(call: CallbackQuery):
 
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅️", callback_data=f"menu:garage:{page-1}"))
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"menu:garage:{page-1}"))
     if end < len(cars):
-        nav.append(InlineKeyboardButton("➡️", callback_data=f"menu:garage:{page+1}"))
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"menu:garage:{page+1}"))
 
     if nav:
         kb.append(nav)
 
-    kb.append([InlineKeyboardButton("🔙 Меню", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
     await call.message.edit_text(
         f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
@@ -844,8 +844,8 @@ async def car_view(call: CallbackQuery):
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
-            [InlineKeyboardButton("🔙 Назад", callback_data="menu:garage:0")]
+            [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:garage:0")]
         ]
     )
     
@@ -949,7 +949,7 @@ async def sell_car(call: CallbackQuery):
         f"{footer()}",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton("🔙 К гаражу", callback_data="menu:garage:0")]]
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0")]]
         )
     )
     await call.answer("✅ Машина продана!", show_alert=True)
@@ -990,8 +990,8 @@ async def welcome_settings(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton("✅ Включить", callback_data="welcome:on"),
-                InlineKeyboardButton("❌ Выключить", callback_data="welcome:off"),
+                InlineKeyboardButton(text="✅ Включить", callback_data="welcome:on"),
+                InlineKeyboardButton(text="❌ Выключить", callback_data="welcome:off"),
             ]
         ]
     )
