@@ -344,7 +344,9 @@ def group_case_rate_limit_ok(chat_id, user_id):
 @dp.message(F.chat.type == "private", Command("start"))
 async def start(message: Message):
     user = get_user(message.from_user.id)
-    if not user:
+    is_new = user is None
+    
+    if is_new:
         add_user(
             message.from_user.id,
             message.from_user.username,
@@ -357,20 +359,32 @@ async def start(message: Message):
             message.from_user.first_name,
         )
 
-    await message.answer(
-        f"{header()}\n\n"
-        f"👋 Привет, <b>{message.from_user.first_name}</b>!\n\n"
-        f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
-        f"🎁 <b>Как начать:</b>\n"
-        f"• Открывай <b>бесплатные кейсы</b> каждые 4 часа\n"
-        f"• Копи монеты и <b>покупай платные кейсы</b>\n"
-        f"• Собирай все машины в <b>гараже</b>\n"
-        f"• Продавай дубликаты и зарабатывай\n\n"
-        f"Выбери действие ниже и начни играть!\n\n"
-        f"{footer()}",
-        reply_markup=main_menu_kb(),
-        parse_mode="HTML",
-    )
+    if is_new:
+        # Подробное приветствие для новых
+        await message.answer(
+            f"{header()}\n\n"
+            f"👋 Привет, <b>{message.from_user.first_name}</b>!\n\n"
+            f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
+            f"🎁 <b>Как начать:</b>\n"
+            f"• Открывай <b>бесплатные кейсы</b> каждые 4 часа\n"
+            f"• Копи монеты и <b>покупай платные кейсы</b>\n"
+            f"• Собирай все машины в <b>гараже</b>\n"
+            f"• Продавай дубликаты и зарабатывай\n\n"
+            f"Выбери действие ниже и начни играть!\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
+    else:
+        # Обычное меню для вернувшихся
+        await message.answer(
+            f"{header()}\n\n"
+            f"Привет, <b>{message.from_user.first_name}</b>!\n"
+            f"Выбери действие:\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
 
 
 @dp.callback_query(F.data == "start")
