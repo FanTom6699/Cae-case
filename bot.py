@@ -1578,11 +1578,11 @@ async def group_text_trigger(message: Message):
 # TOP COMMAND
 # =========================
 
-@dp.message(F.chat.type != "private", Command("топ"))
+@dp.message(F.chat.type != "private", Command("top"))
 async def top_command(message: Message):
     top = get_top_users_by_coins(10)
     
-    text = f"{header()}\n\n🏆 <b>ТОП ИГРОКОВ</b>\n\n"
+    text = f"{header()}\n\n🏆 <b>ГЛОБАЛЬНЫЙ ТОП</b>\n\n"
     for i, row in enumerate(top, start=1):
         text += f"{i}. <b>{row['first_name']}</b> - {row['coins']} 💰\n"
     text += f"\n{footer()}"
@@ -1590,18 +1590,18 @@ async def top_command(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 # =========================
-# BALANCE COMMAND (GROUP)
+# BALANCE COMMAND (GROUP EN)
 # =========================
 
-@dp.message(F.chat.type != "private", Command("баланс"))
+@dp.message(F.chat.type != "private", Command("balance"))
 async def balance_command(message: Message):
     user = get_user(message.from_user.id)
     if not user:
         bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
         await message.answer(
             f"{header()}\n\n"
-            f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
+            f"👤 {message.from_user.first_name}, зарегистрируйся сначала!\n\n"
+            f"<a href='{bot_link}'>Нажми</a>\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
@@ -1609,147 +1609,10 @@ async def balance_command(message: Message):
     
     await message.answer(
         f"{header()}\n\n"
-        f"💰 {message.from_user.first_name}, твой баланс: {user['coins']} Coins\n\n"
+        f"💰 {message.from_user.first_name}, баланс: {user['coins']} Coins\n\n"
         f"{footer()}",
         parse_mode="HTML",
     )
-
-# =========================
-# CASE COMMAND (GROUP)
-# =========================
-
-@dp.message(F.chat.type != "private", Command("кейс"))
-async def case_command(message: Message):
-    user = get_user(message.from_user.id)
-    if not user:
-        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
-        await message.answer(
-            f"{header()}\n\n"
-            f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
-            f"{footer()}",
-            parse_mode="HTML"
-        )
-        logger.info(
-            "group_case_unregistered user_id=%s chat_id=%s",
-            message.from_user.id,
-            message.chat.id,
-        )
-        return
-
-    ok, remaining = group_case_rate_limit_ok(message.chat.id, message.from_user.id)
-    if not ok:
-        await message.answer(
-            f"{header()}\n\n"
-            f"⏳ {message.from_user.first_name}, не так часто!\n\n"
-            f"Подожди: {remaining} сек\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-        logger.info(
-            "group_case_rate_limited user_id=%s chat_id=%s remaining=%s",
-            message.from_user.id,
-            message.chat.id,
-            remaining,
-        )
-        return
-
-    available, remaining = free_case_available(user)
-
-    if not available:
-        await message.answer(
-            f"{header()}\n\n"
-            f"⏳ {message.from_user.first_name}, бесплатный кейс недоступен\n\n"
-            f"Осталось: {format_timedelta(remaining)}\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-        logger.info(
-            "group_case_cooldown user_id=%s chat_id=%s remaining=%s",
-            message.from_user.id,
-            message.chat.id,
-            format_timedelta(remaining),
-        )
-        return
-
-    card_id = draw_random_card(message.from_user.id)
-    
-    if card_id is None:
-        await message.answer(
-            f"{header()}\n\n"
-            f"🎯 {message.from_user.first_name}, коллекция полна!\n\n"
-            "Ты собрал все машины этой редкости!\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-        logger.info(
-            "group_case_no_cards user_id=%s chat_id=%s",
-            message.from_user.id,
-            message.chat.id,
-        )
-        return
-    
-    card = CARDS[card_id]
-    rarity = card["rarity"]
-
-    add_car_to_garage(user["user_id"], card_id, rarity)
-    add_coins(user["user_id"], 100)
-    update_last_free_case_time(user["user_id"])
-    logger.info(
-        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=100",
-        message.from_user.id,
-        message.chat.id,
-        card_id,
-        rarity,
-    )
-
-    image_path = card["image"]
-    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./{image_path}"
-    
-    try:
-        if image_path:
-            image = FSInputFile(image_path)
-            await message.answer_photo(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-                    f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
-                    f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
-    except (FileNotFoundError, OSError):
-        logger.warning(
-            "image_missing context=group_case user_id=%s card_id=%s image_path=%s",
-            message.from_user.id,
-            card_id,
-            image_path,
-        )
-        await message.answer(
-            f"{header()}\n\n"
-            f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-            f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
-            f"📸 <i>Фото на стадии разработки</i>\n"
-            f"💰 <b>Бонус:</b> +100 Coins\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-    else:
-        if not image_path:
-            await message.answer(
-                f"{header()}\n\n"
-                f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-                f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
-                f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
-            )
 
 # =========================
 # RUN
@@ -1769,13 +1632,12 @@ async def main():
         BotCommand(command="start", description="Начать игру"),
     ])
     
-    # Команды для групп
+    # Команды для групп (только латиница)
     await bot.set_my_commands(
         [
-            BotCommand(command="welcome", description="Включить/отключить приветствие"),
-            BotCommand(command="баланс", description="Показать баланс"),
-            BotCommand(command="кейс", description="Открыть кейс"),
-            BotCommand(command="топ", description="Топ игроков"),
+            BotCommand(command="welcome", description="Приветствие новичков"),
+            BotCommand(command="balance", description="Показать баланс"),
+            BotCommand(command="top", description="Топ игроков"),
         ],
         scope=BotCommandScopeAllGroupChats()
     )
