@@ -983,8 +983,7 @@ async def garage(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
 
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    await call.message.edit_text(
         f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
         parse_mode="HTML",
