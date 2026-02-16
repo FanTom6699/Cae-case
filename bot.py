@@ -164,15 +164,30 @@ async def edit_message_text(
     parse_mode="HTML",
     replace_photo: bool = False,
 ):
-    if getattr(message, "photo", None):
-        if replace_photo:
+    """Edit message text intelligently based on message type."""
+    
+    # Проверяем есть ли фото
+    has_photo = getattr(message, "photo", None) is not None
+    
+    # Если есть фото и replace_photo=True, удаляем старое и отправляем новое
+    if has_photo and replace_photo:
+        try:
             await delete_message_safe(message)
+        except Exception as e:
+            logger.debug("Failed to delete message: %s", e)
+        
+        try:
             await message.answer(
                 text,
                 reply_markup=reply_markup,
                 parse_mode=parse_mode,
             )
-            return
+        except Exception as e:
+            logger.error("Failed to answer with new message: %s", e)
+        return
+    
+    # Если есть фото и replace_photo=False, пробуем отредактировать caption
+    if has_photo and not replace_photo:
         try:
             await message.edit_caption(
                 caption=text,
@@ -180,21 +195,30 @@ async def edit_message_text(
                 parse_mode=parse_mode,
             )
             return
-        except Exception:
-            pass
-
+        except Exception as e:
+            logger.debug("edit_caption failed: %s", e)
+            # Fallback: удаляем и отправляем новое
+            try:
+                await delete_message_safe(message)
+                await message.answer(
+                    text,
+                    reply_markup=reply_markup,
+                    parse_mode=parse_mode,
+                )
+            except Exception as fallback_error:
+                logger.error("Fallback answer failed: %s", fallback_error)
+            return
+    
+    # Для текстовых сообщений - редактируем
     try:
         await message.edit_text(
             text,
             reply_markup=reply_markup,
             parse_mode=parse_mode,
         )
-    except Exception:
-        await message.answer(
-            text,
-            reply_markup=reply_markup,
-            parse_mode=parse_mode,
-        )
+        logger.debug("Message edited successfully")
+    except Exception as e:
+        logger.error("edit_text failed, message might be too old or deleted: %s", e)
 
 def main_menu_kb():
     return InlineKeyboardMarkup(
@@ -261,7 +285,10 @@ async def send_stats(target, from_callback=False):
     )
 
     if from_callback:
-        await edit_message_text(target, text, reply_markup=kb, replace_photo=True)
+        try:
+            await target.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        except Exception as e:
+            logger.error("send_stats edit_text failed: %s", e)
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
@@ -295,7 +322,10 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         ]
     )
 
-    await edit_message_text(call.message, text, reply_markup=kb, replace_photo=True)
+    try:
+        await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+    except Exception as e:
+        logger.error("show_leaderboard edit_text failed: %s", e)
 
 
 def group_case_rate_limit_ok(chat_id, user_id):
@@ -381,15 +411,17 @@ async def feedback_menu(call: CallbackQuery):
         InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
     ])
 
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        "✍️ <b>Отзыв</b>\n\n"
-        "Выбери категорию:\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "✍️ <b>Отзыв</b>\n\n"
+            "Выбери категорию:\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("feedback_menu edit_text failed: %s", e)
     await call.answer()
 
 
@@ -403,34 +435,38 @@ async def feedback_category(call: CallbackQuery):
     category = dict(FEEDBACK_CATEGORIES).get(slug, "Другое")
     FEEDBACK_PENDING[call.from_user.id] = slug
 
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        f"✍️ <b>Категория:</b> {category}\n\n"
-        "Напиши сообщение одним текстом:\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[
-                InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
-                InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
-            ]]
-        ),
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            f"✍️ <b>Категория:</b> {category}\n\n"
+            "Напиши сообщение одним текстом:\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[
+                    InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
+                    InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
+                ]]
+            ),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("feedback_category edit_text failed: %s", e)
     await call.answer()
 
 
 @dp.callback_query(F.data == "feedback:cancel")
 async def feedback_cancel(call: CallbackQuery):
     FEEDBACK_PENDING.pop(call.from_user.id, None)
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        "❌ Отзыв отменен\n\n"
-        f"{footer()}",
-        reply_markup=main_menu_kb(),
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "❌ Отзыв отменен\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("feedback_cancel edit_text failed: %s", e)
     await call.answer()
 
 
@@ -584,14 +620,20 @@ async def balance(call: CallbackQuery):
     if not user:
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        f"💰 <b>Coins:</b> {user['coins']}\n\n"
-        f"{footer()}",
-        reply_markup=main_menu_kb(),
-        replace_photo=True,
-    )
+    
+    logger.info("balance handler: editing message, user_id=%s coins=%s", call.from_user.id, user['coins'])
+    
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            f"💰 <b>Coins:</b> {user['coins']}\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("balance edit_text failed: %s", e)
+        
     await call.answer()
 
 # =========================
@@ -636,17 +678,19 @@ async def buy_cases_menu(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        "<b>💳 Магазин кейсов</b>\n\n"
-        f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
-        "✅ = можно купить\n"
-        "❌ = недостаточно Coins\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "<b>💳 Магазин кейсов</b>\n\n"
+            f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
+            "✅ = можно купить\n"
+            "❌ = недостаточно Coins\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("buy_cases_menu edit_text failed: %s", e)
     await call.answer()
 
 
@@ -799,15 +843,17 @@ async def free_case(call: CallbackQuery):
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
             ]
         )
-        await edit_message_text(
-            call.message,
-            f"{header()}\n\n"
-            "⏳ Бесплатный кейс недоступен\n\n"
-            f"Осталось: {format_timedelta(remaining)}\n\n"
-            f"{footer()}",
-            reply_markup=kb,
-            replace_photo=True,
-        )
+        try:
+            await call.message.edit_text(
+                f"{header()}\n\n"
+                "⏳ Бесплатный кейс недоступен\n\n"
+                f"Осталось: {format_timedelta(remaining)}\n\n"
+                f"{footer()}",
+                reply_markup=kb,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error("free_case unavailable edit_text failed: %s", e)
         await call.answer()
         return
 
@@ -824,15 +870,17 @@ async def free_case(call: CallbackQuery):
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
             ]
         )
-        await edit_message_text(
-            call.message,
-            f"{header()}\n\n"
-            "🎯 <b>Коллекция полна!</b>\n\n"
-            "Ты собрал все машины!\n\n"
-            f"{footer()}",
-            reply_markup=kb,
-            replace_photo=True,
-        )
+        try:
+            await call.message.edit_text(
+                f"{header()}\n\n"
+                "🎯 <b>Коллекция полна!</b>\n\n"
+                "Ты собрал все машины!\n\n"
+                f"{footer()}",
+                reply_markup=kb,
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error("free_case fullcollection edit_text failed: %s", e)
         await call.answer()
         return
     
@@ -917,12 +965,14 @@ async def garage(call: CallbackQuery):
     cars = get_user_garage(user["user_id"])
 
     if not cars:
-        await edit_message_text(
-            call.message,
-            f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
-            reply_markup=main_menu_kb(),
-            replace_photo=True,
-        )
+        try:
+            await call.message.edit_text(
+                f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
+                reply_markup=main_menu_kb(),
+                parse_mode="HTML",
+            )
+        except Exception as e:
+            logger.error("garage empty edit_text failed: %s", e)
         await call.answer()
         return
 
@@ -953,12 +1003,14 @@ async def garage(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("garage show edit_text failed: %s", e)
     await call.answer()
 
 
@@ -1216,14 +1268,16 @@ async def welcome_toggle(call: CallbackQuery):
     set_group_welcome_enabled(call.message.chat.id, enabled)
     status = "✅ Включено" if enabled else "❌ Выключено"
 
-    await edit_message_text(
-        call.message,
-        f"{header()}\n\n"
-        f"👋 <b>Приветствие:</b> {status}\n\n"
-        f"{footer()}",
-        reply_markup=call.message.reply_markup,
-        replace_photo=True,
-    )
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            f"👋 <b>Приветствие:</b> {status}\n\n"
+            f"{footer()}",
+            reply_markup=call.message.reply_markup,
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        logger.error("welcome_toggle edit_text failed: %s", e)
     await call.answer("✅ Готово")
 
 
