@@ -245,37 +245,57 @@ def free_case_available(user):
 
 
 async def send_stats(target, from_callback=False):
-    top_coins = get_top_users_by_coins(10)
-    top_collection = get_top_users_by_collection(10)
-
-    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-
-    coins_lines = []
-    for i, row in enumerate(top_coins, start=1):
-        label = format_user_label(row["user_id"], row["username"], row["first_name"])
-        prefix = medals.get(i, f"{i}.")
-        coins_lines.append(f"{prefix} {label} — {row['coins']} Coins")
-
-    coll_lines = []
-    total_cards = len(CARDS)
-    for i, row in enumerate(top_collection, start=1):
-        label = format_user_label(row["user_id"], row["username"], row["first_name"])
-        prefix = medals.get(i, f"{i}.")
-        coll_lines.append(f"{prefix} {label} — {row['count']} / {total_cards}")
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
+            [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
+            [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+        ]
+    )
 
     text = (
         f"{header()}\n\n"
-        "🏆 <b>ТОП ПО COINS</b>\n"
-        f"{('\\n'.join(coins_lines)) if coins_lines else 'Пусто'}\n\n"
-        "🚗 <b>ТОП ПО КОЛЛЕКЦИИ</b>\n"
-        f"{('\\n'.join(coll_lines)) if coll_lines else 'Пусто'}\n\n"
+        "📊 <b>Статистика</b>\n\n"
+        "Выбери что хочешь посмотреть:\n\n"
         f"{footer()}"
     )
 
     if hasattr(target, "edit_text") and from_callback:
-        await edit_message_text(target, text, reply_markup=main_menu_kb(), replace_photo=True)
+        await edit_message_text(target, text, reply_markup=kb, replace_photo=True)
     else:
-        await target.answer(text, parse_mode="HTML", reply_markup=main_menu_kb())
+        await target.answer(text, parse_mode="HTML", reply_markup=kb)
+
+
+async def show_leaderboard(call: CallbackQuery, stat_type: str):
+    if stat_type == "coins":
+        top = get_top_users_by_coins(10)
+        title = "🏆 <b>ТОП ПО COINS</b>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} {row['first_name'] or 'Unknown'} — {row['coins']} Coins"
+    else:
+        top = get_top_users_by_collection(10)
+        total_cards = len(CARDS)
+        title = "🚗 <b>ТОП ПО КОЛЛЕКЦИИ</b>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} {row['first_name'] or 'Unknown'} — {row['count']} / {total_cards}"
+
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    lines = []
+    for i, row in enumerate(top, start=1):
+        lines.append(line_format(i, row, medals))
+
+    text = (
+        f"{header()}\n\n"
+        f"{title}\n\n"
+        f"{('\\n'.join(lines)) if lines else 'Пусто'}\n\n"
+        f"{footer()}"
+    )
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:stats")],
+        ]
+    )
+
+    await edit_message_text(call.message, text, reply_markup=kb, replace_photo=True)
 
 
 def group_case_rate_limit_ok(chat_id, user_id):
@@ -327,6 +347,13 @@ async def stats_command(message: Message):
 @dp.callback_query(F.data == "menu:stats")
 async def stats_menu(call: CallbackQuery):
     await send_stats(call.message, from_callback=True)
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("stats:"))
+async def show_stats(call: CallbackQuery):
+    stat_type = call.data.split(":")[1]
+    await show_leaderboard(call, stat_type)
     await call.answer()
 
 
