@@ -1633,30 +1633,55 @@ async def balance_command(message: Message):
 # =========================
 
 async def main():
-    init_db()
-    global BOT_USERNAME
-    global BOT_ID
-    if not BOT_USERNAME:
-        me = await bot.get_me()
-        BOT_USERNAME = me.username
-        BOT_ID = me.id
-    
-    # Команды для личного чата
-    await bot.set_my_commands([
-        BotCommand(command="start", description="Начать игру"),
-    ])
-    
-    # Команды для групп (только латиница)
-    await bot.set_my_commands(
-        [
-            BotCommand(command="welcome", description="Приветствие новичков"),
-            BotCommand(command="balance", description="Показать баланс"),
-            BotCommand(command="top", description="Топ игроков"),
-        ],
-        scope=BotCommandScopeAllGroupChats()
-    )
-    
-    await dp.start_polling(bot)
+    try:
+        init_db()
+        global BOT_USERNAME
+        global BOT_ID
+        if not BOT_USERNAME:
+            me = await bot.get_me()
+            BOT_USERNAME = me.username
+            BOT_ID = me.id
+        
+        logger.info("Bot started: %s", BOT_USERNAME)
+        
+        # Команды для личного чата
+        await bot.set_my_commands([
+            BotCommand(command="start", description="Начать игру"),
+        ])
+        
+        # Команды для групп (только латиница)
+        await bot.set_my_commands(
+            [
+                BotCommand(command="welcome", description="Приветствие новичков"),
+                BotCommand(command="balance", description="Показать баланс"),
+                BotCommand(command="top", description="Топ игроков"),
+            ],
+            scope=BotCommandScopeAllGroupChats()
+        )
+        
+        logger.info("Bot commands set")
+        logger.info("Starting polling...")
+        
+        while True:
+            try:
+                await dp.start_polling(bot)
+            except Exception as e:
+                logger.error("Polling error: %s", e, exc_info=True)
+                logger.info("Reconnecting in 5 seconds...")
+                await asyncio.sleep(5)
+        
+    except KeyboardInterrupt:
+        logger.info("Bot interrupted by user")
+    except Exception as e:
+        logger.error("Fatal startup error: %s", e, exc_info=True)
+    finally:
+        await bot.session.close()
+        logger.info("Bot stopped")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Bot interrupted by user")
+    except Exception as e:
+        logger.error("Fatal error: %s", e, exc_info=True)
