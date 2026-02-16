@@ -273,7 +273,7 @@ async def send_stats(target, from_callback=False):
         inline_keyboard=[
             [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
             [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
-            [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
         ]
     )
 
@@ -285,10 +285,7 @@ async def send_stats(target, from_callback=False):
     )
 
     if from_callback:
-        try:
-            await target.edit_text(text, reply_markup=kb, parse_mode="HTML")
-        except Exception as e:
-            logger.error("send_stats edit_text failed: %s", e)
+        await target.edit_text(text, reply_markup=kb, parse_mode="HTML")
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=kb)
 
@@ -366,6 +363,18 @@ async def start(message: Message):
     )
 
 
+@dp.callback_query(F.data == "start")
+async def start_menu(call: CallbackQuery):
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "Меню\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
     await send_stats(message)
@@ -403,7 +412,7 @@ async def feedback_menu(call: CallbackQuery):
         [InlineKeyboardButton(text=label, callback_data=f"feedback:cat:{slug}")]
         for slug, label in FEEDBACK_CATEGORIES
     ]
-    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -433,7 +442,7 @@ async def feedback_category(call: CallbackQuery):
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[
-                InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance"),
+                InlineKeyboardButton(text="🔙 Назад", callback_data="start"),
             ]]
         ),
         parse_mode="HTML",
@@ -448,7 +457,9 @@ async def feedback_cancel(call: CallbackQuery):
         f"{header()}\n\n"
         "🔙 Назад в меню\n\n"
         f"{footer()}",
-        reply_markup=main_menu_kb(),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 Меню", callback_data="start")]]
+        ),
         parse_mode="HTML",
     )
     await call.answer()
@@ -609,7 +620,9 @@ async def balance(call: CallbackQuery):
         f"{header()}\n\n"
         f"💰 <b>Coins:</b> {user['coins']}\n\n"
         f"{footer()}",
-        reply_markup=main_menu_kb(),
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 Меню", callback_data="start")]]
+        ),
         parse_mode="HTML",
     )
     await call.answer()
@@ -654,7 +667,7 @@ async def buy_cases_menu(call: CallbackQuery):
             )
         ])
 
-    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -815,7 +828,7 @@ async def free_case(call: CallbackQuery):
     if not available:
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
             ]
         )
         await call.message.edit_text(
@@ -839,7 +852,7 @@ async def free_case(call: CallbackQuery):
         )
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:balance")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
             ]
         )
         await call.message.edit_text(
@@ -968,7 +981,7 @@ async def garage(call: CallbackQuery):
     if nav:
         kb.append(nav)
 
-    kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
+    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
 
     await delete_message_safe(call.message)
     await call.message.answer(
