@@ -947,10 +947,11 @@ async def garage(call: CallbackQuery):
     cars = get_user_garage(user["user_id"])
 
     if not cars:
-        await delete_message_safe(call.message)
-        await call.message.answer(
+        await call.message.edit_text(
             f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+            ),
             parse_mode="HTML",
         )
         await call.answer()
