@@ -17,6 +17,8 @@ from aiogram.types import (
     InlineKeyboardButton,
     FSInputFile,
     ChatMemberUpdated,
+    BotCommand,
+    BotCommandScope,
 )
 from dotenv import load_dotenv
 
@@ -357,8 +359,14 @@ async def start(message: Message):
 
     await message.answer(
         f"{header()}\n\n"
-        "Добро пожаловать.\n"
-        "Используй меню ниже.\n\n"
+        f"👋 Привет, <b>{message.from_user.first_name}</b>!\n\n"
+        f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
+        f"🎁 <b>Как начать:</b>\n"
+        f"• Открывай <b>бесплатные кейсы</b> каждые 4 часа\n"
+        f"• Копи монеты и <b>покупай платные кейсы</b>\n"
+        f"• Собирай все машины в <b>гараже</b>\n"
+        f"• Продавай дубликаты и зарабатывай\n\n"
+        f"Выбери действие ниже и начни играть!\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(),
         parse_mode="HTML",
@@ -1334,7 +1342,12 @@ async def group_welcome(message: Message):
 @dp.message(F.chat.type != "private", Command("welcome"))
 async def welcome_settings(message: Message):
     if not await is_group_admin(message.chat.id, message.from_user.id):
-        await message.answer("⛔ Только админы могут менять приветствие")
+        await message.answer(
+            f"{header()}\n\n"
+            f"⚙️ Это команда для администрации\n\n"
+            f"{footer()}",
+            parse_mode="HTML"
+        )
         return
 
     enabled = get_group_welcome_enabled(message.chat.id)
@@ -1349,7 +1362,7 @@ async def welcome_settings(message: Message):
     )
     await message.answer(
         f"{header()}\n\n"
-        f"👋 <b>Приветствие:</b> {status}\n\n"
+        f"👋 <b>Приветствие новых пользователей:</b> {status}\n\n"
         f"{footer()}",
         reply_markup=kb,
         parse_mode="HTML",
@@ -1371,7 +1384,7 @@ async def welcome_toggle(call: CallbackQuery):
         await call.answer("❌ Эта кнопка работает только в группах", show_alert=True)
         return
     if not await is_group_admin(call.message.chat.id, call.from_user.id):
-        await call.answer("⛔ Только админы могут менять приветствие", show_alert=True)
+        await call.answer("⚙️ Эта команда для администрации", show_alert=True)
         return
 
     enabled = call.data.split(":", 1)[1] == "on"
@@ -1381,7 +1394,7 @@ async def welcome_toggle(call: CallbackQuery):
     try:
         await call.message.edit_text(
             f"{header()}\n\n"
-            f"👋 <b>Приветствие:</b> {status}\n\n"
+            f"👋 <b>Приветствие новых пользователей:</b> {status}\n\n"
             f"{footer()}",
             reply_markup=call.message.reply_markup,
             parse_mode="HTML",
@@ -1562,6 +1575,183 @@ async def group_text_trigger(message: Message):
             )
 
 # =========================
+# TOP COMMAND
+# =========================
+
+@dp.message(F.chat.type != "private", Command("топ"))
+async def top_command(message: Message):
+    top = get_top_users_by_coins(10)
+    
+    text = f"{header()}\n\n🏆 <b>ТОП ИГРОКОВ</b>\n\n"
+    for i, row in enumerate(top, start=1):
+        text += f"{i}. <b>{row['first_name']}</b> - {row['coins']} 💰\n"
+    text += f"\n{footer()}"
+    
+    await message.answer(text, parse_mode="HTML")
+
+# =========================
+# BALANCE COMMAND (GROUP)
+# =========================
+
+@dp.message(F.chat.type != "private", Command("баланс"))
+async def balance_command(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await message.answer(
+            f"{header()}\n\n"
+            f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
+            f"{footer()}",
+            parse_mode="HTML"
+        )
+        return
+    
+    await message.answer(
+        f"{header()}\n\n"
+        f"💰 {message.from_user.first_name}, твой баланс: {user['coins']} Coins\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+    )
+
+# =========================
+# CASE COMMAND (GROUP)
+# =========================
+
+@dp.message(F.chat.type != "private", Command("кейс"))
+async def case_command(message: Message):
+    user = get_user(message.from_user.id)
+    if not user:
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await message.answer(
+            f"{header()}\n\n"
+            f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
+            f"{footer()}",
+            parse_mode="HTML"
+        )
+        logger.info(
+            "group_case_unregistered user_id=%s chat_id=%s",
+            message.from_user.id,
+            message.chat.id,
+        )
+        return
+
+    ok, remaining = group_case_rate_limit_ok(message.chat.id, message.from_user.id)
+    if not ok:
+        await message.answer(
+            f"{header()}\n\n"
+            f"⏳ {message.from_user.first_name}, не так часто!\n\n"
+            f"Подожди: {remaining} сек\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        logger.info(
+            "group_case_rate_limited user_id=%s chat_id=%s remaining=%s",
+            message.from_user.id,
+            message.chat.id,
+            remaining,
+        )
+        return
+
+    available, remaining = free_case_available(user)
+
+    if not available:
+        await message.answer(
+            f"{header()}\n\n"
+            f"⏳ {message.from_user.first_name}, бесплатный кейс недоступен\n\n"
+            f"Осталось: {format_timedelta(remaining)}\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        logger.info(
+            "group_case_cooldown user_id=%s chat_id=%s remaining=%s",
+            message.from_user.id,
+            message.chat.id,
+            format_timedelta(remaining),
+        )
+        return
+
+    card_id = draw_random_card(message.from_user.id)
+    
+    if card_id is None:
+        await message.answer(
+            f"{header()}\n\n"
+            f"🎯 {message.from_user.first_name}, коллекция полна!\n\n"
+            "Ты собрал все машины этой редкости!\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        logger.info(
+            "group_case_no_cards user_id=%s chat_id=%s",
+            message.from_user.id,
+            message.chat.id,
+        )
+        return
+    
+    card = CARDS[card_id]
+    rarity = card["rarity"]
+
+    add_car_to_garage(user["user_id"], card_id, rarity)
+    add_coins(user["user_id"], 100)
+    update_last_free_case_time(user["user_id"])
+    logger.info(
+        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=100",
+        message.from_user.id,
+        message.chat.id,
+        card_id,
+        rarity,
+    )
+
+    image_path = card["image"]
+    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
+        image_path = f"./{image_path}"
+    
+    try:
+        if image_path:
+            image = FSInputFile(image_path)
+            await message.answer_photo(
+                image,
+                caption=(
+                    f"{header()}\n\n"
+                    f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+                    f"🚘 <b>{card['name_ru']}</b>\n"
+                    f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                    f"💰 <b>Бонус:</b> +100 Coins\n\n"
+                    f"{footer()}"
+                ),
+                parse_mode="HTML",
+            )
+    except (FileNotFoundError, OSError):
+        logger.warning(
+            "image_missing context=group_case user_id=%s card_id=%s image_path=%s",
+            message.from_user.id,
+            card_id,
+            image_path,
+        )
+        await message.answer(
+            f"{header()}\n\n"
+            f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+            f"🚘 <b>{card['name_ru']}</b>\n"
+            f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+            f"📸 <i>Фото на стадии разработки</i>\n"
+            f"💰 <b>Бонус:</b> +100 Coins\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+    else:
+        if not image_path:
+            await message.answer(
+                f"{header()}\n\n"
+                f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+                f"🚘 <b>{card['name_ru']}</b>\n"
+                f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                f"💰 <b>Бонус:</b> +100 Coins\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+
+# =========================
 # RUN
 # =========================
 
@@ -1573,6 +1763,23 @@ async def main():
         me = await bot.get_me()
         BOT_USERNAME = me.username
         BOT_ID = me.id
+    
+    # Команды для личного чата
+    await bot.set_my_commands([
+        BotCommand(command="start", description="Начать игру"),
+    ])
+    
+    # Команды для групп
+    await bot.set_my_commands(
+        [
+            BotCommand(command="welcome", description="Включить/отключить приветствие"),
+            BotCommand(command="баланс", description="Показать баланс"),
+            BotCommand(command="кейс", description="Открыть кейс"),
+            BotCommand(command="топ", description="Топ игроков"),
+        ],
+        scope=BotCommandScope(type="all_group_chats")
+    )
+    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
