@@ -322,10 +322,8 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         ]
     )
 
-    try:
-        await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
-    except Exception as e:
-        logger.error("show_leaderboard edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 def group_case_rate_limit_ok(chat_id, user_id):
@@ -411,17 +409,15 @@ async def feedback_menu(call: CallbackQuery):
         InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
     ])
 
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            "✍️ <b>Отзыв</b>\n\n"
-            "Выбери категорию:\n\n"
-            f"{footer()}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("feedback_menu edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n"
+        "✍️ <b>Отзыв</b>\n\n"
+        "Выбери категорию:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
@@ -435,38 +431,34 @@ async def feedback_category(call: CallbackQuery):
     category = dict(FEEDBACK_CATEGORIES).get(slug, "Другое")
     FEEDBACK_PENDING[call.from_user.id] = slug
 
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            f"✍️ <b>Категория:</b> {category}\n\n"
-            "Напиши сообщение одним текстом:\n\n"
-            f"{footer()}",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[[
-                    InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
-                    InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
-                ]]
-            ),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("feedback_category edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n"
+        f"✍️ <b>Категория:</b> {category}\n\n"
+        "Напиши сообщение одним текстом:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(text="❌ Отмена", callback_data="feedback:cancel"),
+                InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
+            ]]
+        ),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
 @dp.callback_query(F.data == "feedback:cancel")
 async def feedback_cancel(call: CallbackQuery):
     FEEDBACK_PENDING.pop(call.from_user.id, None)
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            "❌ Отзыв отменен\n\n"
-            f"{footer()}",
-            reply_markup=main_menu_kb(),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("feedback_cancel edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n"
+        "❌ Отзыв отменен\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
@@ -621,17 +613,14 @@ async def balance(call: CallbackQuery):
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
     
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            f"💰 <b>Coins:</b> {user['coins']}\n\n"
-            f"{footer()}",
-            reply_markup=main_menu_kb(),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("balance edit_text failed: %s", e)
-        
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n"
+        f"💰 <b>Coins:</b> {user['coins']}\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 # =========================
@@ -676,19 +665,17 @@ async def buy_cases_menu(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            "<b>💳 Магазин кейсов</b>\n\n"
-            f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
-            "✅ = можно купить\n"
-            "❌ = недостаточно Coins\n\n"
-            f"{footer()}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("buy_cases_menu edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n"
+        "<b>💳 Магазин кейсов</b>\n\n"
+        f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
+        "✅ = можно купить\n"
+        "❌ = недостаточно Coins\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
@@ -841,17 +828,15 @@ async def free_case(call: CallbackQuery):
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
             ]
         )
-        try:
-            await call.message.edit_text(
-                f"{header()}\n\n"
-                "⏳ Бесплатный кейс недоступен\n\n"
-                f"Осталось: {format_timedelta(remaining)}\n\n"
-                f"{footer()}",
-                reply_markup=kb,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error("free_case unavailable edit_text failed: %s", e)
+        await delete_message_safe(call.message)
+        await call.message.answer(
+            f"{header()}\n\n"
+            "⏳ Бесплатный кейс недоступен\n\n"
+            f"Осталось: {format_timedelta(remaining)}\n\n"
+            f"{footer()}",
+            reply_markup=kb,
+            parse_mode="HTML",
+        )
         await call.answer()
         return
 
@@ -868,17 +853,15 @@ async def free_case(call: CallbackQuery):
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")],
             ]
         )
-        try:
-            await call.message.edit_text(
-                f"{header()}\n\n"
-                "🎯 <b>Коллекция полна!</b>\n\n"
-                "Ты собрал все машины!\n\n"
-                f"{footer()}",
-                reply_markup=kb,
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error("free_case fullcollection edit_text failed: %s", e)
+        await delete_message_safe(call.message)
+        await call.message.answer(
+            f"{header()}\n\n"
+            "🎯 <b>Коллекция полна!</b>\n\n"
+            "Ты собрал все машины!\n\n"
+            f"{footer()}",
+            reply_markup=kb,
+            parse_mode="HTML",
+        )
         await call.answer()
         return
     
