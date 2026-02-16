@@ -16,6 +16,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton,
     FSInputFile,
+    ChatMemberUpdated,
 )
 from dotenv import load_dotenv
 
@@ -229,6 +230,7 @@ def main_menu_kb():
             [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
             [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
             [InlineKeyboardButton(text="💰 Баланс", callback_data="menu:balance")],
+            [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
         ]
     )
 
@@ -337,7 +339,7 @@ def group_case_rate_limit_ok(chat_id, user_id):
 # START
 # =========================
 
-@dp.message(Command("start"))
+@dp.message(F.chat.type == "private", Command("start"))
 async def start(message: Message):
     user = get_user(message.from_user.id)
     if not user:
@@ -365,6 +367,10 @@ async def start(message: Message):
 
 @dp.callback_query(F.data == "start")
 async def start_menu(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
+        return
+        
     await call.message.edit_text(
         f"{header()}\n\n"
         "Меню\n\n"
@@ -375,9 +381,71 @@ async def start_menu(call: CallbackQuery):
     await call.answer()
 
 
+@dp.callback_query(F.data == "menu:help")
+async def help_menu(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "❓ Помощь доступна только в ЛС\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+    
+    help_text = (
+        f"{header()}\n\n"
+        "<b>❓ Помощь</b>\n\n"
+        "<b>📱 Команды:</b>\n"
+        "/start - Главное меню\n"
+        "/stats - Показать топ игроков\n"
+        "/help - Эта справка\n\n"
+        "<b>🔊 Триггеры в группе:</b>\n"
+        "<b>Открыть кейс:</b>\n"
+        "  кейс, case, открыть, open\n"
+        "<b>Показать баланс:</b>\n"
+        "  баланс, balance, coins\n\n"
+        "<b>💡 Совет:</b>\n"
+        "Все основные функции доступны через меню ниже 👇\n\n"
+        f"{footer()}"
+    )
+    
+    await call.message.edit_text(
+        help_text,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
     await send_stats(message)
+
+
+@dp.message(Command("help"))
+async def help_command(message: Message):
+    help_text = (
+        f"{header()}\n\n"
+        "<b>❓ Помощь</b>\n\n"
+        "<b>📱 Команды:</b>\n"
+        "/start - Главное меню\n"
+        "/stats - Показать топ игроков\n"
+        "/help - Эта справка\n\n"
+        "<b>🔊 Триггеры в группе:</b>\n"
+        "<b>Открыть кейс:</b>\n"
+        "  кейс, case, открыть, open\n"
+        "<b>Показать баланс:</b>\n"
+        "  баланс, balance, coins\n\n"
+        "<b>💡 Совет:</b>\n"
+        "Все основные функции доступны через меню 👇\n\n"
+        f"{footer()}"
+    )
+    await message.answer(help_text, parse_mode="HTML")
 
 
 @dp.callback_query(F.data == "menu:stats")
@@ -633,6 +701,18 @@ async def balance(call: CallbackQuery):
 
 @dp.callback_query(F.data == "menu:buy_cases")
 async def buy_cases_menu(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "💳 Магазин доступен только в ЛС\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+    
     user = get_user(call.from_user.id)
     if not user:
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
@@ -766,7 +846,7 @@ async def buy_case(call: CallbackQuery):
     emoji = RARITY_EMOJI.get(rarity, "❓")
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./common/{image_path.split('/')[-1]}"
+        image_path = f"./{image_path}"
 
     await delete_message_safe(call.message)
     
@@ -819,6 +899,18 @@ async def buy_case(call: CallbackQuery):
 
 @dp.callback_query(F.data == "menu:free")
 async def free_case(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "🎁 Бесплатные кейсы доступны только в ЛС\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+    
     user = get_user(call.from_user.id)
     if not user:
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
@@ -939,6 +1031,18 @@ async def free_case(call: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("menu:garage"))
 async def garage(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "🚘 Гараж доступен только в ЛС\n\n"
+            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+    
     page = int(call.data.split(":")[2])
     user = get_user(call.from_user.id)
     if not user:
@@ -1178,6 +1282,34 @@ async def chat_id_command(message: Message):
         parse_mode="HTML",
     )
 
+# =========================
+# BOT ADDED TO GROUP
+# =========================
+
+@dp.my_chat_member()
+async def bot_added_to_group(update: ChatMemberUpdated):
+    if update.new_chat_member.status == "member":
+        chat = update.chat
+        if chat.type in ["group", "supergroup"]:
+            bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+            title = chat.title or "группу"
+            
+            await update.from_user.bot.send_message(
+                chat.id,
+                f"{header()}\n\n"
+                f"👋 Привет! Я добавлен в <b>{title}</b>!\n\n"
+                f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
+                f"📝 Команды в группе:\n"
+                f"• <code>кейс</code> - открыть бесплатный кейс\n"
+                f"• <code>баланс</code> - показать баланс\n\n"
+                f"⚙️ <b>Для администрации:</b>\n"
+                f"• <code>/welcome</code> - включить/отключить приветствие новых пользователей\n\n"
+                f"<a href='{bot_link}'>Открыть бота в ЛС</a> чтобы начать игру!\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            logger.info("bot_added_to_group chat_id=%s chat_title=%s", chat.id, title)
+
 @dp.message(F.chat.type != "private", F.new_chat_members)
 async def group_welcome(message: Message):
     if not get_group_welcome_enabled(message.chat.id):
@@ -1383,7 +1515,7 @@ async def group_text_trigger(message: Message):
 
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./common/{image_path.split('/')[-1]}"
+        image_path = f"./{image_path}"
     
     try:
         if image_path:
