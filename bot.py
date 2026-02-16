@@ -51,7 +51,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME")
 BOT_ID = None
 LOG_PATH = os.getenv("LOG_PATH", "bot.log")
 LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "1"))
-FEEDBACK_CHAT_ID = int(os.getenv("FEEDBACK_CHAT_ID", "-5129896461"))
+FEEDBACK_CHAT_ID = int(os.getenv("FEEDBACK_CHAT_ID", "-1003802493555"))
 
 logging.basicConfig(
     level=logging.INFO,
