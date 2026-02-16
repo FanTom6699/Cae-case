@@ -1091,6 +1091,24 @@ async def sell_car(call: CallbackQuery):
 # GROUP COMMANDS (SAFE)
 # =========================
 
+@dp.message(Command("chat_id"))
+async def chat_id_command(message: Message):
+    if message.chat.type == "private":
+        await message.answer(
+            f"{header()}\n\n"
+            f"🆔 Твой ID: {message.from_user.id}\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    await message.answer(
+        f"{header()}\n\n"
+        f"🆔 ID группы: {message.chat.id}\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+    )
+
 @dp.message(F.chat.type != "private", F.new_chat_members)
 async def group_welcome(message: Message):
     if not get_group_welcome_enabled(message.chat.id):
