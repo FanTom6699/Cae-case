@@ -148,6 +148,32 @@ def header():
 def footer():
     return "━━━━━━━━━━━━"
 
+
+async def edit_message_text(message: Message, text: str, reply_markup=None, parse_mode="HTML"):
+    if getattr(message, "photo", None):
+        try:
+            await message.edit_caption(
+                caption=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+            )
+            return
+        except Exception:
+            pass
+
+    try:
+        await message.edit_text(
+            text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+    except Exception:
+        await message.answer(
+            text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+
 def main_menu_kb():
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -223,7 +249,7 @@ async def send_stats(target, from_callback=False):
     )
 
     if hasattr(target, "edit_text") and from_callback:
-        await target.edit_text(text, parse_mode="HTML", reply_markup=main_menu_kb())
+        await edit_message_text(target, text, reply_markup=main_menu_kb())
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=main_menu_kb())
 
@@ -445,12 +471,12 @@ async def balance(call: CallbackQuery):
     if not user:
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         f"💰 <b>Coins:</b> {user['coins']}\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(),
-        parse_mode="HTML",
     )
     await call.answer()
 
@@ -496,7 +522,8 @@ async def buy_cases_menu(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         "<b>💳 Магазин кейсов</b>\n\n"
         f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
@@ -504,7 +531,6 @@ async def buy_cases_menu(call: CallbackQuery):
         "❌ = недостаточно Coins\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        parse_mode="HTML",
     )
     await call.answer()
 
@@ -651,12 +677,12 @@ async def free_case(call: CallbackQuery):
     available, remaining = free_case_available(user)
 
     if not available:
-        await call.message.edit_text(
+        await edit_message_text(
+            call.message,
             f"{header()}\n\n"
             "⏳ Бесплатный кейс недоступен\n\n"
             f"Осталось: {format_timedelta(remaining)}\n\n"
             f"{footer()}",
-            parse_mode="HTML",
         )
         await call.answer()
         return
@@ -669,12 +695,12 @@ async def free_case(call: CallbackQuery):
             "free_case_no_cards user_id=%s",
             call.from_user.id,
         )
-        await call.message.edit_text(
+        await edit_message_text(
+            call.message,
             f"{header()}\n\n"
             "🎯 <b>Коллекция полна!</b>\n\n"
             "Ты собрал все машины!\n\n"
             f"{footer()}",
-            parse_mode="HTML",
         )
         await call.answer()
         return
@@ -758,10 +784,10 @@ async def garage(call: CallbackQuery):
     cars = get_user_garage(user["user_id"])
 
     if not cars:
-        await call.message.edit_text(
+        await edit_message_text(
+            call.message,
             f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
             reply_markup=main_menu_kb(),
-            parse_mode="HTML",
         )
         await call.answer()
         return
@@ -793,10 +819,10 @@ async def garage(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        parse_mode="HTML",
     )
     await call.answer()
 
@@ -941,16 +967,16 @@ async def sell_car(call: CallbackQuery):
         sell_price,
     )
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         f"✅ <b>Машина продана!</b>\n\n"
         f"🚘 {card['name_ru']}\n"
         f"💰 <b>Получено:</b> +{sell_price} Coins\n\n"
         f"{footer()}",
-        parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0")]]
-        )
+        ),
     )
     await call.answer("✅ Машина продана!", show_alert=True)
 
@@ -1026,12 +1052,12 @@ async def welcome_toggle(call: CallbackQuery):
     set_group_welcome_enabled(call.message.chat.id, enabled)
     status = "✅ Включено" if enabled else "❌ Выключено"
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         f"👋 <b>Приветствие:</b> {status}\n\n"
         f"{footer()}",
         reply_markup=call.message.reply_markup,
-        parse_mode="HTML",
     )
     await call.answer("✅ Готово")
 
