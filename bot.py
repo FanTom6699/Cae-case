@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 from aiogram.types import (
     Message,
@@ -149,8 +150,29 @@ def footer():
     return "━━━━━━━━━━━━"
 
 
-async def edit_message_text(message: Message, text: str, reply_markup=None, parse_mode="HTML"):
+async def delete_message_safe(message: Message):
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+async def edit_message_text(
+    message: Message,
+    text: str,
+    reply_markup=None,
+    parse_mode="HTML",
+    replace_photo: bool = False,
+):
     if getattr(message, "photo", None):
+        if replace_photo:
+            await delete_message_safe(message)
+            await message.answer(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+            )
+            return
         try:
             await message.edit_caption(
                 caption=text,
@@ -203,6 +225,8 @@ async def is_group_admin(chat_id, user_id):
 
 
 def format_user_label(user_id, username, first_name):
+    if username and first_name:
+        return f"{first_name} (@{username})"
     if username:
         return f"@{username}"
     if first_name:
@@ -249,7 +273,7 @@ async def send_stats(target, from_callback=False):
     )
 
     if hasattr(target, "edit_text") and from_callback:
-        await edit_message_text(target, text, reply_markup=main_menu_kb())
+        await edit_message_text(target, text, reply_markup=main_menu_kb(), replace_photo=True)
     else:
         await target.answer(text, parse_mode="HTML", reply_markup=main_menu_kb())
 
@@ -311,6 +335,7 @@ async def feedback_menu(call: CallbackQuery):
     if call.message.chat.type != "private":
         bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
         await call.answer()
+        await delete_message_safe(call.message)
         await call.message.answer(
             f"{header()}\n\n"
             "✍️ Отзывы принимаются в ЛС\n\n"
@@ -329,13 +354,14 @@ async def feedback_menu(call: CallbackQuery):
         InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
     ])
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         "✍️ <b>Отзыв</b>\n\n"
         "Выбери категорию:\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-        parse_mode="HTML",
+        replace_photo=True,
     )
     await call.answer()
 
@@ -350,7 +376,8 @@ async def feedback_category(call: CallbackQuery):
     category = dict(FEEDBACK_CATEGORIES).get(slug, "Другое")
     FEEDBACK_PENDING[call.from_user.id] = slug
 
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         f"✍️ <b>Категория:</b> {category}\n\n"
         "Напиши сообщение одним текстом:\n\n"
@@ -361,7 +388,7 @@ async def feedback_category(call: CallbackQuery):
                 InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance"),
             ]]
         ),
-        parse_mode="HTML",
+        replace_photo=True,
     )
     await call.answer()
 
@@ -369,12 +396,13 @@ async def feedback_category(call: CallbackQuery):
 @dp.callback_query(F.data == "feedback:cancel")
 async def feedback_cancel(call: CallbackQuery):
     FEEDBACK_PENDING.pop(call.from_user.id, None)
-    await call.message.edit_text(
+    await edit_message_text(
+        call.message,
         f"{header()}\n\n"
         "❌ Отзыв отменен\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(),
-        parse_mode="HTML",
+        replace_photo=True,
     )
     await call.answer()
 
@@ -401,12 +429,21 @@ async def feedback_message(message: Message):
     username = f"@{sender.username}" if sender.username else "(нет username)"
 
     try:
-        global BOT_ID
+        global BOT_ID, FEEDBACK_CHAT_ID
         if BOT_ID is None:
             me = await bot.get_me()
             BOT_ID = me.id
 
-        await bot.get_chat_member(FEEDBACK_CHAT_ID, BOT_ID)
+        try:
+            await bot.get_chat_member(FEEDBACK_CHAT_ID, BOT_ID)
+        except TelegramBadRequest as exc:
+            params = getattr(exc, "parameters", None)
+            migrate_to = getattr(params, "migrate_to_chat_id", None) if params else None
+            if migrate_to:
+                FEEDBACK_CHAT_ID = migrate_to
+                await bot.get_chat_member(FEEDBACK_CHAT_ID, BOT_ID)
+            else:
+                raise
     except Exception as exc:
         logger.error(
             "feedback_chat_unavailable user_id=%s error=%s",
@@ -423,15 +460,19 @@ async def feedback_message(message: Message):
         )
         return
 
+    feedback_text = (
+        f"📬 <b>Новый отзыв</b>\n\n"
+        f"👤 <b>Пользователь:</b> {sender.full_name}\n"
+        f"🔗 <b>Username:</b> {username}\n"
+        f"🆔 <b>ID:</b> {sender.id}\n"
+        f"🏷️ <b>Категория:</b> {category}\n\n"
+        f"💬 <b>Сообщение:</b>\n{text}"
+    )
+
     try:
         await bot.send_message(
             FEEDBACK_CHAT_ID,
-            f"📬 <b>Новый отзыв</b>\n\n"
-            f"👤 <b>Пользователь:</b> {sender.full_name}\n"
-            f"🔗 <b>Username:</b> {username}\n"
-            f"🆔 <b>ID:</b> {sender.id}\n"
-            f"🏷️ <b>Категория:</b> {category}\n\n"
-            f"💬 <b>Сообщение:</b>\n{text}",
+            feedback_text,
             parse_mode="HTML",
         )
         await message.answer(
@@ -446,6 +487,51 @@ async def feedback_message(message: Message):
             sender.id,
             slug,
             FEEDBACK_CHAT_ID,
+        )
+    except TelegramBadRequest as exc:
+        params = getattr(exc, "parameters", None)
+        migrate_to = getattr(params, "migrate_to_chat_id", None) if params else None
+        if migrate_to:
+            try:
+                await bot.send_message(
+                    migrate_to,
+                    feedback_text,
+                    parse_mode="HTML",
+                )
+                FEEDBACK_CHAT_ID = migrate_to
+                await message.answer(
+                    f"{header()}\n\n"
+                    "✅ Спасибо! Отзыв отправлен.\n\n"
+                    f"{footer()}",
+                    reply_markup=main_menu_kb(),
+                    parse_mode="HTML",
+                )
+                logger.info(
+                    "feedback_chat_migrated user_id=%s old_chat_id=%s new_chat_id=%s",
+                    sender.id,
+                    FEEDBACK_CHAT_ID,
+                    migrate_to,
+                )
+                return
+            except Exception as exc2:
+                logger.error(
+                    "feedback_send_failed user_id=%s error=%s",
+                    sender.id,
+                    exc2,
+                )
+        else:
+            logger.error(
+                "feedback_send_failed user_id=%s error=%s",
+                sender.id,
+                exc,
+            )
+
+        await message.answer(
+            f"{header()}\n\n"
+            "❌ Не удалось отправить отзыв. Попробуй позже.\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
         )
     except Exception as exc:
         logger.error(
@@ -477,6 +563,7 @@ async def balance(call: CallbackQuery):
         f"💰 <b>Coins:</b> {user['coins']}\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(),
+        replace_photo=True,
     )
     await call.answer()
 
@@ -531,6 +618,7 @@ async def buy_cases_menu(call: CallbackQuery):
         "❌ = недостаточно Coins\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        replace_photo=True,
     )
     await call.answer()
 
@@ -620,6 +708,8 @@ async def buy_case(call: CallbackQuery):
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
         image_path = f"./common/{image_path.split('/')[-1]}"
+
+    await delete_message_safe(call.message)
     
     try:
         if image_path:
@@ -683,6 +773,7 @@ async def free_case(call: CallbackQuery):
             "⏳ Бесплатный кейс недоступен\n\n"
             f"Осталось: {format_timedelta(remaining)}\n\n"
             f"{footer()}",
+            replace_photo=True,
         )
         await call.answer()
         return
@@ -701,6 +792,7 @@ async def free_case(call: CallbackQuery):
             "🎯 <b>Коллекция полна!</b>\n\n"
             "Ты собрал все машины!\n\n"
             f"{footer()}",
+            replace_photo=True,
         )
         await call.answer()
         return
@@ -724,6 +816,8 @@ async def free_case(call: CallbackQuery):
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
         image_path = f"./common/{image_path.split('/')[-1]}"
+
+    await delete_message_safe(call.message)
     
     try:
         if image_path:
@@ -788,6 +882,7 @@ async def garage(call: CallbackQuery):
             call.message,
             f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
             reply_markup=main_menu_kb(),
+            replace_photo=True,
         )
         await call.answer()
         return
@@ -823,6 +918,7 @@ async def garage(call: CallbackQuery):
         call.message,
         f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        replace_photo=True,
     )
     await call.answer()
 
@@ -867,11 +963,16 @@ async def car_view(call: CallbackQuery):
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
         image_path = f"./common/{image_path.split('/')[-1]}"
+
+    await delete_message_safe(call.message)
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu:garage:0")]
+            [
+                InlineKeyboardButton(text="🔙 Назад", callback_data="menu:garage:0"),
+                InlineKeyboardButton(text="🏠 Меню", callback_data="menu:balance"),
+            ],
         ]
     )
     
@@ -975,8 +1076,14 @@ async def sell_car(call: CallbackQuery):
         f"💰 <b>Получено:</b> +{sell_price} Coins\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0")]]
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0"),
+                    InlineKeyboardButton(text="🏠 Меню", callback_data="menu:balance"),
+                ]
+            ]
         ),
+        replace_photo=True,
     )
     await call.answer("✅ Машина продана!", show_alert=True)
 
@@ -1058,6 +1165,7 @@ async def welcome_toggle(call: CallbackQuery):
         f"👋 <b>Приветствие:</b> {status}\n\n"
         f"{footer()}",
         reply_markup=call.message.reply_markup,
+        replace_photo=True,
     )
     await call.answer("✅ Готово")
 
