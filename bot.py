@@ -621,8 +621,6 @@ async def balance(call: CallbackQuery):
         await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
         return
     
-    logger.info("balance handler: editing message, user_id=%s coins=%s", call.from_user.id, user['coins'])
-    
     try:
         await call.message.edit_text(
             f"{header()}\n\n"
@@ -965,14 +963,12 @@ async def garage(call: CallbackQuery):
     cars = get_user_garage(user["user_id"])
 
     if not cars:
-        try:
-            await call.message.edit_text(
-                f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
-                reply_markup=main_menu_kb(),
-                parse_mode="HTML",
-            )
-        except Exception as e:
-            logger.error("garage empty edit_text failed: %s", e)
+        await delete_message_safe(call.message)
+        await call.message.answer(
+            f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
         await call.answer()
         return
 
@@ -1003,14 +999,12 @@ async def garage(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Меню", callback_data="menu:balance")])
 
-    try:
-        await call.message.edit_text(
-            f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
-            parse_mode="HTML",
-        )
-    except Exception as e:
-        logger.error("garage show edit_text failed: %s", e)
+    await delete_message_safe(call.message)
+    await call.message.answer(
+        f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
