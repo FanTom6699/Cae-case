@@ -1210,6 +1210,7 @@ async def car_view(call: CallbackQuery):
             [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
             [
                 InlineKeyboardButton(text="🔙 Назад в гараж", callback_data="menu:garage:0"),
+                InlineKeyboardButton(text="🏠 Меню", callback_data="start"),
             ],
         ]
     )
