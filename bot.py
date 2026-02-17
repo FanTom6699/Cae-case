@@ -110,6 +110,13 @@ RARITY_EMOJI = {
     "Legendary": "🟡",
 }
 
+RARITY_RU = {
+    "Common": "Обычная",
+    "Rare": "Редкая",
+    "Epic": "Эпическая",
+    "Legendary": "Легендарная",
+}
+
 # =========================
 # RARITY DRAW
 # =========================
@@ -297,13 +304,13 @@ async def send_stats(target, from_callback=False):
 async def show_leaderboard(call: CallbackQuery, stat_type: str):
     if stat_type == "coins":
         top = get_top_users_by_coins(10)
-        title = "🏆 <b>ТОП ПО COINS</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} {row['first_name'] or 'Unknown'} — {row['coins']} Coins"
+        title = "🏆 <b>ТОП ПО МОНЕТАМ</b>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'({i})')} <b>{row['first_name'] or 'Unknown'}</b> — {row['coins']} 💰"
     else:
         top = get_top_users_by_collection(10)
         total_cards = len(CARDS)
         title = "🚗 <b>ТОП ПО КОЛЛЕКЦИИ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} {row['first_name'] or 'Unknown'} — {row['count']} / {total_cards}"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'({i})')} <b>{row['first_name'] or 'Unknown'}</b> — {row['count']}/{total_cards} 🚗"
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     lines = []
@@ -313,7 +320,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     text = (
         f"{header()}\n\n"
         f"{title}\n\n"
-        f"{('\\n'.join(lines)) if lines else 'Пусто'}\n\n"
+        f"{chr(10).join(lines) if lines else 'Пусто'}\n\n"
         f"{footer()}"
     )
 
@@ -881,7 +888,7 @@ async def buy_case(call: CallbackQuery):
                     f"{header()}\n\n"
                     f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
                     f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {emoji} {rarity}\n\n"
+                    f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
                     f"{footer()}"
                 ),
                 parse_mode="HTML",
@@ -897,7 +904,7 @@ async def buy_case(call: CallbackQuery):
             f"{header()}\n\n"
             f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
             f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {emoji} {rarity}\n"
+            f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n"
             f"📸 <i>Фото на стадии разработки</i>\n\n"
             f"{footer()}",
             parse_mode="HTML",
@@ -908,7 +915,7 @@ async def buy_case(call: CallbackQuery):
                 f"{header()}\n\n"
                 f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
                 f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {emoji} {rarity}\n\n"
+                f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
             )
@@ -998,7 +1005,7 @@ async def free_case(call: CallbackQuery):
 
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./common/{image_path.split('/')[-1]}"
+        image_path = f"./{image_path}"
 
     await delete_message_safe(call.message)
     
@@ -1011,7 +1018,7 @@ async def free_case(call: CallbackQuery):
                     f"{header()}\n\n"
                     "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
                     f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                    f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
                     f"💰 <b>Бонус:</b> +100 Coins\n\n"
                     f"{footer()}"
                 ),
@@ -1028,7 +1035,7 @@ async def free_case(call: CallbackQuery):
             f"{header()}\n\n"
             "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
             f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+            f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
             f"📸 <i>Фото на стадии разработки</i>\n"
             f"💰 <b>Бонус:</b> +100 Coins\n\n"
             f"{footer()}",
@@ -1040,7 +1047,7 @@ async def free_case(call: CallbackQuery):
                 f"{header()}\n\n"
                 "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
                 f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
                 f"💰 <b>Бонус:</b> +100 Coins\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
@@ -1157,7 +1164,7 @@ async def car_view(call: CallbackQuery):
 
     image_path = card["image"]
     if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./common/{image_path.split('/')[-1]}"
+        image_path = f"./{image_path}"
 
     await delete_message_safe(call.message)
     
@@ -1179,7 +1186,7 @@ async def car_view(call: CallbackQuery):
                 caption=(
                     f"{header()}\n\n"
                     f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {emoji} {car['rarity']}\n"
+                    f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
                     f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
                     f"{footer()}"
                 ),
@@ -1196,7 +1203,7 @@ async def car_view(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {emoji} {car['rarity']}\n"
+            f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
             f"💰 <b>Продать за:</b> {sell_price} Coins\n"
             f"📸 <i>Фото на стадии разработки</i>\n\n"
             f"{footer()}",
@@ -1208,7 +1215,7 @@ async def car_view(call: CallbackQuery):
             await call.message.answer(
                 f"{header()}\n\n"
                 f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {emoji} {car['rarity']}\n"
+                f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
                 f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
@@ -1553,7 +1560,7 @@ async def group_text_trigger(message: Message):
                     f"{header()}\n\n"
                     f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
                     f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                    f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
                     f"💰 <b>Бонус:</b> +100 Coins\n\n"
                     f"{footer()}"
                 ),
@@ -1570,7 +1577,7 @@ async def group_text_trigger(message: Message):
             f"{header()}\n\n"
             f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
             f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+            f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
             f"📸 <i>Фото на стадии разработки</i>\n"
             f"💰 <b>Бонус:</b> +100 Coins\n\n"
             f"{footer()}",
@@ -1582,7 +1589,7 @@ async def group_text_trigger(message: Message):
                 f"{header()}\n\n"
                 f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
                 f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {RARITY_EMOJI[rarity]} {rarity}\n"
+                f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
                 f"💰 <b>Бонус:</b> +100 Coins\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
