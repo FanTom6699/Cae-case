@@ -1079,6 +1079,43 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
+    # Если сообщение содержит фото (пришли из car_view), удаляем его
+    if call.message.photo:
+        await delete_message_safe(call.message)
+        # Создаем новое сообщение с гаражом
+        if not cars:
+            await call.message.answer(
+                f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+                ),
+                parse_mode="HTML",
+            )
+            await call.answer()
+            return
+
+        kb = []
+        for car in cars:
+            card = CARDS.get(car["name"])
+            emoji = RARITY_EMOJI.get(car["rarity"], "❓")
+            display_name = card["name_ru"] if card else f"{car['name']} (нет в каталоге)"
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"{emoji} {display_name}",
+                    callback_data=f"car:view:{car['id']}"
+                )
+            ])
+
+        kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
+
+        await call.message.answer(
+            f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+        await call.answer()
+        return
+
     if not cars:
         await call.message.edit_text(
             f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
@@ -1172,8 +1209,7 @@ async def car_view(call: CallbackQuery):
         inline_keyboard=[
             [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
             [
-                InlineKeyboardButton(text="🔙 Назад", callback_data="menu:garage:0"),
-                InlineKeyboardButton(text="🏠 Меню", callback_data="menu:balance"),
+                InlineKeyboardButton(text="🔙 Назад в гараж", callback_data="menu:garage:0"),
             ],
         ]
     )
@@ -1281,7 +1317,7 @@ async def sell_car(call: CallbackQuery):
             inline_keyboard=[
                 [
                     InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0"),
-                    InlineKeyboardButton(text="🏠 Меню", callback_data="menu:balance"),
+                    InlineKeyboardButton(text="🏠 Меню", callback_data="start"),
                 ]
             ]
         ),
