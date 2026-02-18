@@ -504,6 +504,10 @@ async def get_sticker_id(message: Message):
 @dp.message(Command("addsticker"))
 async def add_sticker_command(message: Message):
     """Команда для создания стикера из фото"""
+    # Проверка доступа: только админ (ID 5658493362) и только в ЛС
+    if message.chat.type != "private" or message.from_user.id != 5658493362:
+        return
+    
     await message.answer(
         f"{header()}\n\n"
         "🎨 <b>СОЗДАНИЕ СТИКЕРА</b>\n\n"
@@ -520,6 +524,10 @@ async def add_sticker_command(message: Message):
 @dp.message(F.photo | F.document)
 async def create_sticker_from_photo(message: Message):
     """Создать стикер из отправленного фото"""
+    
+    # Проверка доступа: только админ (ID 5658493362) и только в ЛС
+    if message.chat.type != "private" or message.from_user.id != 5658493362:
+        return
     
     # Проверяем что это прямой ответ на команду или в контексте создания стикера
     if not message.photo and not (message.document and message.document.mime_type and 'image' in message.document.mime_type):

@@ -1,4 +1,4 @@
-﻿Common | toyota_camry | Тойота Камри
+﻿Common | toyota_camry |  
 Common | honda_civic | Хонда Сивик
 Common | ford_focus | Форд Фокус
 Common | volkswagen_golf | Фольксваген Гольф
