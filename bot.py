@@ -354,8 +354,8 @@ async def test_image(message: Message):
     
     await message.answer("🧪 Команда работает! Проверяю изображение...")
     
-    # Путь к тестовому изображению (используем первую машину из common)
-    test_image_path = "./common/toyota_camry.png"
+    # Путь к тестовому изображению (используем Honda Civic)
+    test_image_path = "./common/honda_civic.png"
     
     try:
         if os.path.exists(test_image_path):
@@ -365,7 +365,7 @@ async def test_image(message: Message):
                 caption=(
                     f"{header()}\n\n"
                     "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
-                    "🚘 Тойота Камри\n"
+                    "🚘 Хонда Сивик\n"
                     "📸 Отправлено как документ с сохранением прозрачности PNG\n\n"
                     f"{footer()}"
                 ),
