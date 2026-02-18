@@ -882,7 +882,7 @@ async def buy_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1012,7 +1012,7 @@ async def free_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1218,7 +1218,7 @@ async def car_view(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1347,6 +1347,52 @@ async def chat_id_command(message: Message):
         f"{footer()}",
         parse_mode="HTML",
     )
+
+# =========================
+# TEST IMAGE COMMAND
+# =========================
+
+@dp.message(F.chat.type == "private", Command("testimage"))
+async def test_image(message: Message):
+    """Тестовая команда для проверки отправки изображений с прозрачным фоном"""
+    
+    # Путь к тестовому изображению (используем первую машину из common)
+    test_image_path = "./common/toyota_camry.png"
+    
+    try:
+        if os.path.exists(test_image_path):
+            image = FSInputFile(test_image_path)
+            await message.answer_document(
+                image,
+                caption=(
+                    f"{header()}\n\n"
+                    "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
+                    "🚘 Тойота Камри\n"
+                    "📸 Отправлено как документ с сохранением прозрачности PNG\n\n"
+                    f"{footer()}"
+                ),
+                parse_mode="HTML",
+            )
+            logger.info("test_image_sent user_id=%s path=%s", message.from_user.id, test_image_path)
+        else:
+            await message.answer(
+                f"{header()}\n\n"
+                f"❌ Тестовое изображение не найдено:\n"
+                f"<code>{test_image_path}</code>\n\n"
+                f"Создай PNG файл с прозрачным фоном и помести его по этому пути.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            logger.warning("test_image_not_found user_id=%s path=%s", message.from_user.id, test_image_path)
+    except Exception as e:
+        await message.answer(
+            f"{header()}\n\n"
+            f"❌ Ошибка при отправке изображения:\n"
+            f"<code>{str(e)}</code>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        logger.error("test_image_error user_id=%s error=%s", message.from_user.id, str(e))
 
 # =========================
 # BOT ADDED TO GROUP
@@ -1591,7 +1637,7 @@ async def group_text_trigger(message: Message):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await message.answer_photo(
+            await message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"

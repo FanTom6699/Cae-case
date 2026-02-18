@@ -1,8 +1,27 @@
-﻿
+﻿Common | toyota_camry | Тойота Камри
+Common | honda_civic | Хонда Сивик
+Common | ford_focus | Форд Фокус
+Common | volkswagen_golf | Фольксваген Гольф
+Common | hyundai_solaris | Хендай Солярис
+Common | kia_rio | Киа Рио
+Common | lada_vesta | Лада Веста
+Common | lada_granta | Лада Гранта (файл: lada.granta.png)
+Common | uaz_patriot | УАЗ Патриот
+Common | vaz_2101 | ВАЗ-2101
+Common | vaz_2106 | ВАЗ-2106
+Common | vaz_2107 | ВАЗ-2107
+Common | moskvich_412 | Москвич-412 (файл: moskivich_412.jpg - нужен .png)
+Common | gaz_24_volga | ГАЗ-24 Волга
+Common | mazda_3 | Мазда 3
+Common | subaru_impreza | Субару Импреза
+Common | toyota_corolla | Тойота Королла
+Common | nissan_altima | Ниссан Альтима
+Common | mitsubishi_lancer | Мицубиси Лансер
+Common | chevrolet_cruze | Шевроле Крузе
 Rare | bmw_3_series | БМВ 3 Серия
 Rare | mercedes_c_class | Мерседес C-Класс
 Rare | audi_a4 | Ауди A4
-Rare | volkswagen_passat | Фольксваген Пассат
+Rare | volkswagen_passat | Фольксваген Пассат (файл: olkswagen_passat.png)
 Rare | skoda_superb | Шкода Суперб
 Rare | hyundai_sonata | Хендай Соната
 Rare | kia_optima | Киа Оптима
