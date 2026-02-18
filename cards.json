@@ -4,6 +4,7 @@
     "name_en": "Toyota Camry",
     "rarity": "Common",
     "image": "common/toyota_camry.png",
+    "sticker_id": "",
     "sell_price": 85
   },
   "honda_civic": {
@@ -11,6 +12,7 @@
     "name_en": "Honda Civic",
     "rarity": "Common",
     "image": "common/honda_civic.png",
+    "sticker_id": "",
     "sell_price": 75
   },
   "ford_focus": {
@@ -18,6 +20,7 @@
     "name_en": "Ford Focus",
     "rarity": "Common",
     "image": "common/ford_focus.png",
+    "sticker_id": "",
     "sell_price": 70
   },
   "volkswagen_golf": {
@@ -25,6 +28,7 @@
     "name_en": "Volkswagen Golf",
     "rarity": "Common",
     "image": "common/volkswagen_golf.png",
+    "sticker_id": "",
     "sell_price": 80
   },
   "hyundai_solaris": {
@@ -32,6 +36,7 @@
     "name_en": "Hyundai Solaris",
     "rarity": "Common",
     "image": "common/hyundai_solaris.png",
+    "sticker_id": "",
     "sell_price": 65
   },
   "kia_rio": {
@@ -39,6 +44,7 @@
     "name_en": "Kia Rio",
     "rarity": "Common",
     "image": "common/kia_rio.png",
+    "sticker_id": "",
     "sell_price": 60
   },
   "lada_vesta": {
@@ -46,6 +52,7 @@
     "name_en": "Lada Vesta",
     "rarity": "Common",
     "image": "common/lada_vesta.png",
+    "sticker_id": "",
     "sell_price": 55
   },
   "lada_granta": {
@@ -53,6 +60,7 @@
     "name_en": "Lada Granta",
     "rarity": "Common",
     "image": "common/lada.granta.png",
+    "sticker_id": "",
     "sell_price": 50
   },
   "uaz_patriot": {
@@ -60,6 +68,7 @@
     "name_en": "UAZ Patriot",
     "rarity": "Common",
     "image": "common/uaz_patriot.png",
+    "sticker_id": "",
     "sell_price": 90
   },
   "vaz_2101": {
@@ -67,6 +76,7 @@
     "name_en": "VAZ-2101",
     "rarity": "Common",
     "image": "common/vaz_2101.png",
+    "sticker_id": "",
     "sell_price": 45
   },
   "vaz_2106": {
@@ -74,6 +84,7 @@
     "name_en": "VAZ-2106",
     "rarity": "Common",
     "image": "common/vaz_2106.png",
+    "sticker_id": "",
     "sell_price": 48
   },
   "vaz_2107": {
@@ -81,6 +92,7 @@
     "name_en": "VAZ-2107",
     "rarity": "Common",
     "image": "common/vaz_2107.png",
+    "sticker_id": "",
     "sell_price": 52
   },
   "moskvich_412": {
@@ -88,6 +100,7 @@
     "name_en": "Moskvich-412",
     "rarity": "Common",
     "image": "common/moskivich_412.jpg",
+    "sticker_id": "",
     "sell_price": 58
   },
   "gaz_24_volga": {
@@ -95,6 +108,7 @@
     "name_en": "GAZ-24 Volga",
     "rarity": "Common",
     "image": "common/gaz_24_volga.png",
+    "sticker_id": "",
     "sell_price": 95
   },
   "mazda_3": {
@@ -102,6 +116,7 @@
     "name_en": "Mazda 3",
     "rarity": "Common",
     "image": "common/mazda_3.png",
+    "sticker_id": "",
     "sell_price": 78
   },
   "subaru_impreza": {
@@ -109,6 +124,7 @@
     "name_en": "Subaru Impreza",
     "rarity": "Common",
     "image": "common/subaru_impreza.png",
+    "sticker_id": "",
     "sell_price": 87
   },
   "toyota_corolla": {
@@ -116,6 +132,7 @@
     "name_en": "Toyota Corolla",
     "rarity": "Common",
     "image": "common/toyota_corolla.png",
+    "sticker_id": "",
     "sell_price": 82
   },
   "nissan_altima": {
@@ -123,6 +140,7 @@
     "name_en": "Nissan Altima",
     "rarity": "Common",
     "image": "common/nissan_altima.png",
+    "sticker_id": "",
     "sell_price": 72
   },
   "mitsubishi_lancer": {
@@ -130,6 +148,7 @@
     "name_en": "Mitsubishi Lancer",
     "rarity": "Common",
     "image": "common/mitsubishi_lancer.png",
+    "sticker_id": "",
     "sell_price": 68
   },
   "chevrolet_cruze": {
@@ -137,6 +156,7 @@
     "name_en": "Chevrolet Cruze",
     "rarity": "Common",
     "image": "common/chevrolet_cruze.png",
+    "sticker_id": "",
     "sell_price": 62
   },
   "bmw_3_series": {
@@ -144,6 +164,7 @@
     "name_en": "BMW 3 Series",
     "rarity": "Rare",
     "image": "rare/bmw_3_series.png",
+    "sticker_id": "",
     "sell_price": 310
   },
   "mercedes_c_class": {
@@ -151,6 +172,7 @@
     "name_en": "Mercedes-Benz C-Class",
     "rarity": "Rare",
     "image": "rare/mercedes_c_class.png",
+    "sticker_id": "",
     "sell_price": 330
   },
   "audi_a4": {
@@ -158,6 +180,7 @@
     "name_en": "Audi A4",
     "rarity": "Rare",
     "image": "rare/audi_a4.png",
+    "sticker_id": "",
     "sell_price": 290
   },
   "volkswagen_passat": {
@@ -165,6 +188,7 @@
     "name_en": "Volkswagen Passat",
     "rarity": "Rare",
     "image": "rare/olkswagen_passat.png",
+    "sticker_id": "",
     "sell_price": 280
   },
   "skoda_superb": {
@@ -172,6 +196,7 @@
     "name_en": "Skoda Superb",
     "rarity": "Rare",
     "image": "rare/skoda_superb.png",
+    "sticker_id": "",
     "sell_price": 270
   },
   "hyundai_sonata": {
@@ -179,6 +204,7 @@
     "name_en": "Hyundai Sonata",
     "rarity": "Rare",
     "image": "rare/hyundai_sonata.png",
+    "sticker_id": "",
     "sell_price": 260
   },
   "kia_optima": {
@@ -186,6 +212,7 @@
     "name_en": "Kia Optima",
     "rarity": "Rare",
     "image": "rare/kia_optima.png",
+    "sticker_id": "",
     "sell_price": 250
   },
   "honda_accord": {
@@ -193,6 +220,7 @@
     "name_en": "Honda Accord",
     "rarity": "Rare",
     "image": "rare/honda_accord.png",
+    "sticker_id": "",
     "sell_price": 320
   },
   "toyota_camry_new": {
@@ -200,6 +228,7 @@
     "name_en": "Toyota Camry (new)",
     "rarity": "Rare",
     "image": "rare/toyota_camry_new.png",
+    "sticker_id": "",
     "sell_price": 340
   },
   "nissan_maxima": {
@@ -207,6 +236,7 @@
     "name_en": "Nissan Maxima",
     "rarity": "Rare",
     "image": "rare/nissan_maxima.png",
+    "sticker_id": "",
     "sell_price": 300
   },
   "mazda_6": {
@@ -214,6 +244,7 @@
     "name_en": "Mazda 6",
     "rarity": "Rare",
     "image": "rare/mazda_6.png",
+    "sticker_id": "",
     "sell_price": 305
   },
   "subaru_legacy": {
@@ -221,6 +252,7 @@
     "name_en": "Subaru Legacy",
     "rarity": "Rare",
     "image": "rare/subaru_legacy.png",
+    "sticker_id": "",
     "sell_price": 315
   },
   "volvo_s60": {
@@ -228,6 +260,7 @@
     "name_en": "Volvo S60",
     "rarity": "Rare",
     "image": "rare/volvo_s60.png",
+    "sticker_id": "",
     "sell_price": 325
   },
   "jaguar_xe": {
@@ -235,6 +268,7 @@
     "name_en": "Jaguar XE",
     "rarity": "Rare",
     "image": "rare/jaguar_xe.png",
+    "sticker_id": "",
     "sell_price": 335
   },
   "infiniti_q50": {
@@ -242,6 +276,7 @@
     "name_en": "Infiniti Q50",
     "rarity": "Rare",
     "image": "rare/infiniti_q50.png",
+    "sticker_id": "",
     "sell_price": 295
   },
   "acura_tlx": {
@@ -249,6 +284,7 @@
     "name_en": "Acura TLX",
     "rarity": "Rare",
     "image": "rare/acura_tlx.png",
+    "sticker_id": "",
     "sell_price": 285
   },
   "lexus_is": {
@@ -256,6 +292,7 @@
     "name_en": "Lexus IS",
     "rarity": "Rare",
     "image": "rare/lexus_is.png",
+    "sticker_id": "",
     "sell_price": 350
   },
   "bmw_5_series": {
@@ -263,6 +300,7 @@
     "name_en": "BMW 5 Series",
     "rarity": "Rare",
     "image": "rare/bmw_5_series.png",
+    "sticker_id": "",
     "sell_price": 360
   },
   "mercedes_e_class": {
@@ -270,6 +308,7 @@
     "name_en": "Mercedes-Benz E-Class",
     "rarity": "Rare",
     "image": "rare/mercedes_e_class.png",
+    "sticker_id": "",
     "sell_price": 370
   },
   "audi_a6": {
@@ -277,6 +316,7 @@
     "name_en": "Audi A6",
     "rarity": "Rare",
     "image": "rare/audi_a6.png",
+    "sticker_id": "",
     "sell_price": 355
   },
   "porsche_911": {
@@ -284,6 +324,7 @@
     "name_en": "Porsche 911",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1050
   },
   "lamborghini_huracan": {
@@ -291,6 +332,7 @@
     "name_en": "Lamborghini Huracán",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1150
   },
   "ferrari_sf90": {
@@ -298,6 +340,7 @@
     "name_en": "Ferrari SF90",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1200
   },
   "mclaren_720s": {
@@ -305,6 +348,7 @@
     "name_en": "McLaren 720S",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1100
   },
   "bugatti_divo": {
@@ -312,6 +356,7 @@
     "name_en": "Bugatti Divo",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1300
   },
   "pagani_huayra": {
@@ -319,6 +364,7 @@
     "name_en": "Pagani Huayra",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1180
   },
   "koenigsegg_jesko": {
@@ -326,6 +372,7 @@
     "name_en": "Koenigsegg Jesko",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1350
   },
   "ssc_tuatara": {
@@ -333,6 +380,7 @@
     "name_en": "SSC Tuatara",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1250
   },
   "hennessey_venom_f5": {
@@ -340,6 +388,7 @@
     "name_en": "Hennessey Venom F5",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1220
   },
   "aspark_owl": {
@@ -347,6 +396,7 @@
     "name_en": "Aspark Owl",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1320
   },
   "rimac_concept_two": {
@@ -354,6 +404,7 @@
     "name_en": "Rimac Concept Two",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1280
   },
   "lotus_evija": {
@@ -361,6 +412,7 @@
     "name_en": "Lotus Evija",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1160
   },
   "pininfarina_battista": {
@@ -368,6 +420,7 @@
     "name_en": "Pininfarina Battista",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1310
   },
   "dodge_viper": {
@@ -375,6 +428,7 @@
     "name_en": "Dodge Viper",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 950
   },
   "chevrolet_corvette_c8": {
@@ -382,6 +436,7 @@
     "name_en": "Chevrolet Corvette C8",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1000
   },
   "nissan_gt_r": {
@@ -389,6 +444,7 @@
     "name_en": "Nissan GT-R",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1080
   },
   "toyota_supra": {
@@ -396,6 +452,7 @@
     "name_en": "Toyota Supra",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 920
   },
   "subaru_wrx_sti": {
@@ -403,6 +460,7 @@
     "name_en": "Subaru WRX STI",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 980
   },
   "mitsubishi_lancer_evo": {
@@ -410,6 +468,7 @@
     "name_en": "Mitsubishi Lancer Evolution",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1040
   },
   "honda_nsx": {
@@ -417,6 +476,7 @@
     "name_en": "Honda NSX",
     "rarity": "Epic",
     "image": "",
+    "sticker_id": "",
     "sell_price": 1130
   },
   "bugatti_chiron": {
@@ -424,6 +484,7 @@
     "name_en": "Bugatti Chiron",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3500
   },
   "lamborghini_veneno": {
@@ -431,6 +492,7 @@
     "name_en": "Lamborghini Veneno",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3800
   },
   "ferrari_la_ferrari": {
@@ -438,6 +500,7 @@
     "name_en": "Ferrari La Ferrari",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3600
   },
   "mclaren_f1": {
@@ -445,6 +508,7 @@
     "name_en": "McLaren F1",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3900
   },
   "pagani_zonda": {
@@ -452,6 +516,7 @@
     "name_en": "Pagani Zonda",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3400
   },
   "koenigsegg_one_1": {
@@ -459,6 +524,7 @@
     "name_en": "Koenigsegg One:1",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3750
   },
   "hennessey_venom_gt": {
@@ -466,6 +532,7 @@
     "name_en": "Hennessey Venom GT",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3200
   },
   "koenigsegg_agera_rs": {
@@ -473,6 +540,7 @@
     "name_en": "Koenigsegg Agera RS",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3650
   },
   "9ff_gt9": {
@@ -480,6 +548,7 @@
     "name_en": "9ff GT9",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2800
   },
   "gumpert_apollo": {
@@ -487,6 +556,7 @@
     "name_en": "Gumpert Apollo",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2600
   },
   "scc_ultimate_aero": {
@@ -494,6 +564,7 @@
     "name_en": "SSC Ultimate Aero",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2900
   },
   "zenvo_st1": {
@@ -501,6 +572,7 @@
     "name_en": "Zenvo ST1",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2700
   },
   "lykan_hypersport": {
@@ -508,6 +580,7 @@
     "name_en": "Lykan Hypersport",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3100
   },
   "ferrari_250_gto": {
@@ -515,6 +588,7 @@
     "name_en": "Ferrari 250 GTO",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 4200
   },
   "bugatti_type_57": {
@@ -522,6 +596,7 @@
     "name_en": "Bugatti Type 57",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 4000
   },
   "maybach_exelero": {
@@ -529,6 +604,7 @@
     "name_en": "Maybach Exelero",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3300
   },
   "rolls_royce_phantom": {
@@ -536,6 +612,7 @@
     "name_en": "Rolls-Royce Phantom",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3050
   },
   "bentley_continental": {
@@ -543,6 +620,7 @@
     "name_en": "Bentley Continental",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2950
   },
   "mercedes_amg_gt_r": {
@@ -550,6 +628,7 @@
     "name_en": "Mercedes-AMG GT R",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 2700
   },
   "porsche_918_spyder": {
@@ -557,6 +636,7 @@
     "name_en": "Porsche 918 Spyder",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3450
   },
   "mclaren_p1": {
@@ -564,6 +644,7 @@
     "name_en": "McLaren P1",
     "rarity": "Legendary",
     "image": "",
+    "sticker_id": "",
     "sell_price": 3850
   }
 }

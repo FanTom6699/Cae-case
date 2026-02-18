@@ -345,6 +345,59 @@ def group_case_rate_limit_ok(chat_id, user_id):
     return True, 0
 
 # =========================
+# SEND CAR IMAGE HELPER
+# =========================
+
+async def send_car_image(target, card, car_rarity, caption, reply_markup=None):
+    """
+    Универсальная функция для отправки изображения машины
+    Приоритет: sticker_id > image файл > текст
+    
+    target: Message или CallbackQuery.message
+    card: словарь с данными машины из CARDS
+    car_rarity: редкость машины
+    caption: текст подписи
+    reply_markup: клавиатура (опционально)
+    """
+    # Проверяем наличие sticker_id (приоритет) - НЕ пустая строка!
+    sticker_id = card.get("sticker_id", "").strip()
+    
+    if sticker_id:  # Теперь проверяет что строка не пустая
+        # Отправляем стикер
+        try:
+            await target.answer_sticker(sticker_id)
+            # После стикера отправляем текст с информацией
+            if reply_markup:
+                await target.answer(caption, parse_mode="HTML", reply_markup=reply_markup)
+            else:
+                await target.answer(caption, parse_mode="HTML")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to send sticker {sticker_id}: {e}, falling back to image")
+    
+    # Если нет sticker_id или не удалось - пробуем изображение
+    image_path = card.get("image", "")
+    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
+        image_path = f"./{image_path}"
+    
+    try:
+        if image_path and os.path.exists(image_path):
+            image = FSInputFile(image_path)
+            await target.answer_document(
+                image,
+                caption=caption,
+                parse_mode="HTML",
+                reply_markup=reply_markup
+            )
+            return True
+    except (FileNotFoundError, OSError) as e:
+        logger.warning(f"Image not found or error: {image_path}, error: {e}")
+    
+    # Если нет ни стикера, ни изображения - ничего не отправляем
+    logger.warning(f"No image available for card, skipping send")
+    return False
+
+# =========================
 # TEST IMAGE COMMAND
 # =========================
 
@@ -352,7 +405,7 @@ def group_case_rate_limit_ok(chat_id, user_id):
 async def test_image(message: Message):
     """Тестовая команда для проверки отправки изображений с прозрачным фоном"""
     
-    await message.answer("🧪 Команда работает! Проверяю изображение...")
+    await message.answer("🧪 Команда работает! Пробую отправить как стикер...")
     
     # Путь к тестовому изображению (используем Honda Civic)
     test_image_path = "./common/honda_civic.png"
@@ -361,31 +414,33 @@ async def test_image(message: Message):
         if os.path.exists(test_image_path):
             image = FSInputFile(test_image_path)
             
-            # Сначала пробуем как стикер (сохраняет прозрачность)
+            # Отправляем как стикер
             try:
                 await message.answer_sticker(image)
                 await message.answer(
                     f"{header()}\n\n"
-                    "🧪 <b>СТИКЕР</b>\n\n"
+                    "🎨 <b>СТИКЕР</b>\n\n"
                     "🚘 Хонда Сивик\n"
-                    "✅ Отправлено как стикер с прозрачным фоном\n\n"
+                    "✅ Отправлено как стикер\n"
+                    "⚠️ Стикеры всегда маленькие в Telegram\n\n"
                     f"{footer()}",
                     parse_mode="HTML",
                 )
-            except:
-                # Если не получилось стикером - отправляем документом
-                await message.answer_document(
-                    image,
-                    caption=(
-                        f"{header()}\n\n"
-                        "🧪 <b>ДОКУМЕНТ</b>\n\n"
-                        "🚘 Хонда Сивик\n"
-                        "📸 Отправлено как документ (прозрачность сохранена)\n\n"
-                        f"{footer()}"
-                    ),
+                logger.info("test_image_sent user_id=%s path=%s as_sticker=True", message.from_user.id, test_image_path)
+            except Exception as sticker_error:
+                await message.answer(
+                    f"{header()}\n\n"
+                    f"❌ <b>Не удалось отправить как стикер</b>\n\n"
+                    f"<code>{str(sticker_error)}</code>\n\n"
+                    f"📝 Требования для стикера:\n"
+                    f"• PNG или WEBP формат\n"
+                    f"• Размер до 512x512 пикселей\n"
+                    f"• Файл до 512 КБ\n"
+                    f"• Прозрачный фон\n\n"
+                    f"{footer()}",
                     parse_mode="HTML",
                 )
-            logger.info("test_image_sent user_id=%s path=%s", message.from_user.id, test_image_path)
+                logger.error("test_image_sticker_failed user_id=%s error=%s", message.from_user.id, str(sticker_error))
         else:
             await message.answer(
                 f"{header()}\n\n"
@@ -405,6 +460,137 @@ async def test_image(message: Message):
             parse_mode="HTML",
         )
         logger.error("test_image_error user_id=%s error=%s", message.from_user.id, str(e))
+
+# =========================
+# GET STICKER FILE_ID
+# =========================
+
+@dp.message(F.sticker)
+async def get_sticker_id(message: Message):
+    """Получить file_id любого стикера - просто перешли стикер боту"""
+    sticker = message.sticker
+    
+    info_text = (
+        f"{header()}\n\n"
+        f"🎨 <b>ИНФОРМАЦИЯ О СТИКЕРЕ</b>\n\n"
+        f"📋 <b>file_id:</b>\n"
+        f"<code>{sticker.file_id}</code>\n\n"
+        f"📐 <b>Размер:</b> {sticker.width}x{sticker.height}\n"
+        f"📦 <b>Файл:</b> {sticker.file_size} байт\n"
+    )
+    
+    if sticker.set_name:
+        info_text += f"📚 <b>Стикерпак:</b> {sticker.set_name}\n"
+    
+    info_text += (
+        f"\n💡 <b>Как использовать:</b>\n"
+        f"Скопируй file_id и добавь в cards.json:\n"
+        f'<code>"sticker_id": "{sticker.file_id}"</code>\n\n'
+        f"{footer()}"
+    )
+    
+    await message.answer(info_text, parse_mode="HTML")
+    logger.info(
+        "sticker_id_requested user_id=%s file_id=%s set_name=%s",
+        message.from_user.id,
+        sticker.file_id,
+        sticker.set_name
+    )
+
+# =========================
+# CREATE STICKER FROM PHOTO
+# =========================
+
+@dp.message(Command("addsticker"))
+async def add_sticker_command(message: Message):
+    """Команда для создания стикера из фото"""
+    await message.answer(
+        f"{header()}\n\n"
+        "🎨 <b>СОЗДАНИЕ СТИКЕРА</b>\n\n"
+        "📸 Отправь мне фото машины (PNG с прозрачным фоном)\n"
+        "🤖 Я создам стикер и дам тебе file_id\n\n"
+        "⚠️ <b>Требования:</b>\n"
+        "• Формат: PNG с прозрачностью\n"
+        "• Размер: оптимально 512x512px\n"
+        "• До 512 КБ\n\n"
+        f"{footer()}",
+        parse_mode="HTML"
+    )
+
+@dp.message(F.photo | F.document)
+async def create_sticker_from_photo(message: Message):
+    """Создать стикер из отправленного фото"""
+    
+    # Проверяем что это прямой ответ на команду или в контексте создания стикера
+    if not message.photo and not (message.document and message.document.mime_type and 'image' in message.document.mime_type):
+        return
+    
+    await message.answer("⏳ Создаю стикер...")
+    
+    try:
+        # Получаем файл
+        if message.photo:
+            file = message.photo[-1]  # Берем самое большое фото
+            file_id = file.file_id
+        else:
+            file = message.document
+            file_id = file.file_id
+        
+        # Скачиваем файл
+        file_info = await message.bot.get_file(file_id)
+        file_path = file_info.file_path
+        
+        # Загружаем как стикер
+        bot_file = await message.bot.download_file(file_path)
+        
+        # Создаем временный файл
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp_file:
+            tmp_file.write(bot_file.read())
+            tmp_path = tmp_file.name
+        
+        # Отправляем как стикер чтобы получить file_id
+        sticker_file = FSInputFile(tmp_path)
+        sent_sticker = await message.answer_sticker(sticker_file)
+        
+        # Получаем file_id отправленного стикера
+        sticker_id = sent_sticker.sticker.file_id
+        
+        # Удаляем временный файл
+        os.remove(tmp_path)
+        
+        # Отправляем результат
+        await message.answer(
+            f"{header()}\n\n"
+            f"✅ <b>СТИКЕР СОЗДАН!</b>\n\n"
+            f"📋 <b>file_id:</b>\n"
+            f"<code>{sticker_id}</code>\n\n"
+            f"💾 <b>Добавь в cards.json:</b>\n"
+            f'<code>"sticker_id": "{sticker_id}"</code>\n\n'
+            f"📝 Нажми на file_id чтобы скопировать\n\n"
+            f"{footer()}",
+            parse_mode="HTML"
+        )
+        
+        logger.info(
+            "sticker_created user_id=%s file_id=%s",
+            message.from_user.id,
+            sticker_id
+        )
+        
+    except Exception as e:
+        await message.answer(
+            f"{header()}\n\n"
+            f"❌ <b>Ошибка создания стикера</b>\n\n"
+            f"<code>{str(e)}</code>\n\n"
+            f"⚠️ Убедись что:\n"
+            f"• Файл PNG с прозрачным фоном\n"
+            f"• Размер до 512KB\n"
+            f"• Разрешение оптимально 512x512\n\n"
+            f"{footer()}",
+            parse_mode="HTML"
+        )
+        logger.error("sticker_creation_failed user_id=%s error=%s", message.from_user.id, str(e))
 
 # =========================
 # START
@@ -935,53 +1121,27 @@ async def buy_case(call: CallbackQuery):
     )
 
     emoji = RARITY_EMOJI.get(rarity, "❓")
-    image_path = card["image"]
-    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./{image_path}"
-
+    
     await delete_message_safe(call.message)
     
-    try:
-        if image_path:
-            image = FSInputFile(image_path)
-            await call.message.answer_document(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
-                    f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
-    except (FileNotFoundError, OSError):
-        logger.warning(
-            "image_missing context=buy_case user_id=%s card_id=%s image_path=%s",
-            call.from_user.id,
-            card_id,
-            image_path,
-        )
+    caption = (
+        f"{header()}\n\n"
+        f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
+        f"🚘 <b>{card['name_ru']}</b>\n"
+        f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
+        f"{footer()}"
+    )
+    
+    success = await send_car_image(call.message, card, rarity, caption)
+    if not success:
+        # Если нет фото - отправим текст с кнопкой
         await call.message.answer(
-            f"{header()}\n\n"
-            f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
-            f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n"
-            f"📸 <i>Фото на стадии разработки</i>\n\n"
-            f"{footer()}",
+            caption,
             parse_mode="HTML",
-        )
-    else:
-        if not image_path:
-            await call.message.answer(
-                f"{header()}\n\n"
-                f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
-                f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🏠 Меню", callback_data="start")]]
             )
-
+        )
     await call.answer()
 
 # =========================
@@ -1065,55 +1225,27 @@ async def free_case(call: CallbackQuery):
         rarity,
     )
 
-    image_path = card["image"]
-    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./{image_path}"
-
     await delete_message_safe(call.message)
     
-    try:
-        if image_path:
-            image = FSInputFile(image_path)
-            await call.message.answer_document(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
-                    f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-                    f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
-    except (FileNotFoundError, OSError):
-        logger.warning(
-            "image_missing context=free_case user_id=%s card_id=%s image_path=%s",
-            call.from_user.id,
-            card_id,
-            image_path,
-        )
+    caption = (
+        f"{header()}\n\n"
+        "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
+        f"🚘 <b>{card['name_ru']}</b>\n"
+        f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"💰 <b>Бонус:</b> +100 Coins\n\n"
+        f"{footer()}"
+    )
+    
+    success = await send_car_image(call.message, card, rarity, caption)
+    if not success:
+        # Если нет фото - отправим текст с кнопкой
         await call.message.answer(
-            f"{header()}\n\n"
-            "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
-            f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-            f"📸 <i>Фото на стадии разработки</i>\n"
-            f"💰 <b>Бонус:</b> +100 Coins\n\n"
-            f"{footer()}",
+            caption,
             parse_mode="HTML",
-        )
-    else:
-        if not image_path:
-            await call.message.answer(
-                f"{header()}\n\n"
-                "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
-                f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-                f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🏠 Меню", callback_data="start")]]
             )
+        )
     await call.answer()
 
 # =========================
@@ -1261,10 +1393,7 @@ async def car_view(call: CallbackQuery):
     emoji = RARITY_EMOJI.get(car["rarity"], "❓")
     sell_price = card.get("sell_price", 0)
 
-    image_path = card["image"]
-    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./{image_path}"
-
+    await call.answer()  # Подтверждаем callback после проверок
     await delete_message_safe(call.message)
     
     kb = InlineKeyboardMarkup(
@@ -1277,50 +1406,18 @@ async def car_view(call: CallbackQuery):
         ]
     )
     
-    try:
-        if image_path:
-            image = FSInputFile(image_path)
-            await call.message.answer_document(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
-                    f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-                reply_markup=kb
-            )
-    except (FileNotFoundError, OSError):
-        logger.warning(
-            "image_missing context=car_view user_id=%s card_name=%s image_path=%s",
-            call.from_user.id,
-            car.get("name"),
-            image_path,
-        )
-        await call.message.answer(
-            f"{header()}\n\n"
-            f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
-            f"💰 <b>Продать за:</b> {sell_price} Coins\n"
-            f"📸 <i>Фото на стадии разработки</i>\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-            reply_markup=kb
-        )
-    else:
-        if not image_path:
-            await call.message.answer(
-                f"{header()}\n\n"
-                f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
-                f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
-                reply_markup=kb
-            )
-    await call.answer()
+    caption = (
+        f"{header()}\n\n"
+        f"🚘 <b>{card['name_ru']}</b>\n"
+        f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
+        f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
+        f"{footer()}"
+    )
+    
+    success = await send_car_image(call.message, card, car["rarity"], caption, reply_markup=kb)
+    if not success:
+        # Если нет фото - отправим текст с кнопками
+        await call.message.answer(caption, parse_mode="HTML", reply_markup=kb)
 
 
 # =========================
@@ -1386,7 +1483,7 @@ async def sell_car(call: CallbackQuery):
         ),
         parse_mode="HTML",
     )
-    await call.answer("✅ Машина продана!", show_alert=True)
+    await call.answer("✅ Машина продана!")
 
 # =========================
 # GROUP COMMANDS (SAFE)
@@ -1646,53 +1743,19 @@ async def group_text_trigger(message: Message):
         rarity,
     )
 
-    image_path = card["image"]
-    if image_path and not image_path.startswith("/") and not image_path.startswith("."):
-        image_path = f"./{image_path}"
+    caption = (
+        f"{header()}\n\n"
+        f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+        f"🚘 <b>{card['name_ru']}</b>\n"
+        f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"💰 <b>Бонус:</b> +100 Coins\n\n"
+        f"{footer()}"
+    )
     
-    try:
-        if image_path:
-            image = FSInputFile(image_path)
-            await message.answer_document(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-                    f"🚘 <b>{card['name_ru']}</b>\n"
-                    f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-                    f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
-    except (FileNotFoundError, OSError):
-        logger.warning(
-            "image_missing context=group_case user_id=%s card_id=%s image_path=%s",
-            message.from_user.id,
-            card_id,
-            image_path,
-        )
-        await message.answer(
-            f"{header()}\n\n"
-            f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-            f"🚘 <b>{card['name_ru']}</b>\n"
-            f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-            f"📸 <i>Фото на стадии разработки</i>\n"
-            f"💰 <b>Бонус:</b> +100 Coins\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-    else:
-        if not image_path:
-            await message.answer(
-                f"{header()}\n\n"
-                f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
-                f"🚘 <b>{card['name_ru']}</b>\n"
-                f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
-                f"💰 <b>Бонус:</b> +100 Coins\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
-            )
+    success = await send_car_image(message, card, rarity, caption)
+    if not success:
+        # Если нет фото в группе - отправим просто текст
+        await message.answer(caption, parse_mode="HTML")
 
 # =========================
 # TOP COMMAND
