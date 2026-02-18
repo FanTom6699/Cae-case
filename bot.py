@@ -468,6 +468,10 @@ async def test_image(message: Message):
 @dp.message(F.sticker)
 async def get_sticker_id(message: Message):
     """Получить file_id любого стикера - просто перешли стикер боту"""
+    # Проверка доступа: только админ (ID 5658493362) и только в ЛС
+    if message.chat.type != "private" or message.from_user.id != 5658493362:
+        return
+    
     sticker = message.sticker
     
     info_text = (
