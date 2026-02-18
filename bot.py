@@ -1352,9 +1352,11 @@ async def chat_id_command(message: Message):
 # TEST IMAGE COMMAND
 # =========================
 
-@dp.message(F.chat.type == "private", Command("testimage"))
+@dp.message(Command("testimage"))
 async def test_image(message: Message):
     """Тестовая команда для проверки отправки изображений с прозрачным фоном"""
+    
+    await message.answer("🧪 Команда работает! Проверяю изображение...")
     
     # Путь к тестовому изображению (используем первую машину из common)
     test_image_path = "./common/toyota_camry.png"
