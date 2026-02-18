@@ -360,17 +360,31 @@ async def test_image(message: Message):
     try:
         if os.path.exists(test_image_path):
             image = FSInputFile(test_image_path)
-            await message.answer_photo(
-                image,
-                caption=(
+            
+            # Сначала пробуем как стикер (сохраняет прозрачность)
+            try:
+                await message.answer_sticker(image)
+                await message.answer(
                     f"{header()}\n\n"
-                    "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
+                    "🧪 <b>СТИКЕР</b>\n\n"
                     "🚘 Хонда Сивик\n"
-                    "📸 Отправлено как фото с прозрачным фоном PNG\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
+                    "✅ Отправлено как стикер с прозрачным фоном\n\n"
+                    f"{footer()}",
+                    parse_mode="HTML",
+                )
+            except:
+                # Если не получилось стикером - отправляем документом
+                await message.answer_document(
+                    image,
+                    caption=(
+                        f"{header()}\n\n"
+                        "🧪 <b>ДОКУМЕНТ</b>\n\n"
+                        "🚘 Хонда Сивик\n"
+                        "📸 Отправлено как документ (прозрачность сохранена)\n\n"
+                        f"{footer()}"
+                    ),
+                    parse_mode="HTML",
+                )
             logger.info("test_image_sent user_id=%s path=%s", message.from_user.id, test_image_path)
         else:
             await message.answer(
