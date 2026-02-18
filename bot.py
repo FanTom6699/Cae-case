@@ -360,13 +360,13 @@ async def test_image(message: Message):
     try:
         if os.path.exists(test_image_path):
             image = FSInputFile(test_image_path)
-            await message.answer_document(
+            await message.answer_photo(
                 image,
                 caption=(
                     f"{header()}\n\n"
                     "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
                     "🚘 Хонда Сивик\n"
-                    "📸 Отправлено как документ с сохранением прозрачности PNG\n\n"
+                    "📸 Отправлено как фото с прозрачным фоном PNG\n\n"
                     f"{footer()}"
                 ),
                 parse_mode="HTML",
@@ -930,7 +930,7 @@ async def buy_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_document(
+            await call.message.answer_photo(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1060,7 +1060,7 @@ async def free_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_document(
+            await call.message.answer_photo(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1266,7 +1266,7 @@ async def car_view(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_document(
+            await call.message.answer_photo(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1639,7 +1639,7 @@ async def group_text_trigger(message: Message):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await message.answer_document(
+            await message.answer_photo(
                 image,
                 caption=(
                     f"{header()}\n\n"
