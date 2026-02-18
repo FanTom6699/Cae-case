@@ -345,6 +345,54 @@ def group_case_rate_limit_ok(chat_id, user_id):
     return True, 0
 
 # =========================
+# TEST IMAGE COMMAND
+# =========================
+
+@dp.message(Command("testimage"))
+async def test_image(message: Message):
+    """Тестовая команда для проверки отправки изображений с прозрачным фоном"""
+    
+    await message.answer("🧪 Команда работает! Проверяю изображение...")
+    
+    # Путь к тестовому изображению (используем первую машину из common)
+    test_image_path = "./common/toyota_camry.png"
+    
+    try:
+        if os.path.exists(test_image_path):
+            image = FSInputFile(test_image_path)
+            await message.answer_document(
+                image,
+                caption=(
+                    f"{header()}\n\n"
+                    "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
+                    "🚘 Тойота Камри\n"
+                    "📸 Отправлено как документ с сохранением прозрачности PNG\n\n"
+                    f"{footer()}"
+                ),
+                parse_mode="HTML",
+            )
+            logger.info("test_image_sent user_id=%s path=%s", message.from_user.id, test_image_path)
+        else:
+            await message.answer(
+                f"{header()}\n\n"
+                f"❌ Тестовое изображение не найдено:\n"
+                f"<code>{test_image_path}</code>\n\n"
+                f"Создай PNG файл с прозрачным фоном и помести его по этому пути.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            logger.warning("test_image_not_found user_id=%s path=%s", message.from_user.id, test_image_path)
+    except Exception as e:
+        await message.answer(
+            f"{header()}\n\n"
+            f"❌ Ошибка при отправке изображения:\n"
+            f"<code>{str(e)}</code>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        logger.error("test_image_error user_id=%s error=%s", message.from_user.id, str(e))
+
+# =========================
 # START
 # =========================
 
@@ -1347,54 +1395,6 @@ async def chat_id_command(message: Message):
         f"{footer()}",
         parse_mode="HTML",
     )
-
-# =========================
-# TEST IMAGE COMMAND
-# =========================
-
-@dp.message(Command("testimage"))
-async def test_image(message: Message):
-    """Тестовая команда для проверки отправки изображений с прозрачным фоном"""
-    
-    await message.answer("🧪 Команда работает! Проверяю изображение...")
-    
-    # Путь к тестовому изображению (используем первую машину из common)
-    test_image_path = "./common/toyota_camry.png"
-    
-    try:
-        if os.path.exists(test_image_path):
-            image = FSInputFile(test_image_path)
-            await message.answer_document(
-                image,
-                caption=(
-                    f"{header()}\n\n"
-                    "🧪 <b>ТЕСТ ИЗОБРАЖЕНИЯ</b>\n\n"
-                    "🚘 Тойота Камри\n"
-                    "📸 Отправлено как документ с сохранением прозрачности PNG\n\n"
-                    f"{footer()}"
-                ),
-                parse_mode="HTML",
-            )
-            logger.info("test_image_sent user_id=%s path=%s", message.from_user.id, test_image_path)
-        else:
-            await message.answer(
-                f"{header()}\n\n"
-                f"❌ Тестовое изображение не найдено:\n"
-                f"<code>{test_image_path}</code>\n\n"
-                f"Создай PNG файл с прозрачным фоном и помести его по этому пути.\n\n"
-                f"{footer()}",
-                parse_mode="HTML",
-            )
-            logger.warning("test_image_not_found user_id=%s path=%s", message.from_user.id, test_image_path)
-    except Exception as e:
-        await message.answer(
-            f"{header()}\n\n"
-            f"❌ Ошибка при отправке изображения:\n"
-            f"<code>{str(e)}</code>\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-        logger.error("test_image_error user_id=%s error=%s", message.from_user.id, str(e))
 
 # =========================
 # BOT ADDED TO GROUP
