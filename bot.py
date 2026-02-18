@@ -944,7 +944,7 @@ async def buy_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1074,7 +1074,7 @@ async def free_case(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1280,7 +1280,7 @@ async def car_view(call: CallbackQuery):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await call.message.answer_photo(
+            await call.message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
@@ -1653,7 +1653,7 @@ async def group_text_trigger(message: Message):
     try:
         if image_path:
             image = FSInputFile(image_path)
-            await message.answer_photo(
+            await message.answer_document(
                 image,
                 caption=(
                     f"{header()}\n\n"
