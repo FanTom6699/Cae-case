@@ -1451,6 +1451,17 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
+    # Удаляем текущее сообщение гаража/меню перед показом машины
+    if call.from_user.id in GARAGE_MESSAGE_ID:
+        try:
+            await bot.delete_message(
+                call.message.chat.id,
+                GARAGE_MESSAGE_ID[call.from_user.id],
+            )
+        except Exception:
+            pass
+        del GARAGE_MESSAGE_ID[call.from_user.id]
+
     # Удаляем старый стикер и прошлое текстовое сообщение
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
