@@ -667,8 +667,14 @@ async def start_menu(call: CallbackQuery):
         await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
         return
     
-    # Очищаем только отслеживание, стикер остается
+    # Удаляем предыдущий стикер, если был
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
+        try:
+            sticker_msg_id, _ = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+        except Exception:
+            pass
         del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
     
     # Просто редактируем текущее сообщение на меню
@@ -1297,8 +1303,14 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
-    # Очищаем только отслеживание, стикер остается
+    # Удаляем предыдущий стикер, если был
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
+        try:
+            sticker_msg_id, _ = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+        except Exception:
+            pass
         del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
 
     if not cars:
@@ -1439,7 +1451,7 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    # Удаляем старый стикер если был открыт другой автомобиль
+    # Удаляем старый стикер, если был открыт другой автомобиль
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
             old_sticker_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id][0]
@@ -1457,12 +1469,30 @@ async def car_view(call: CallbackQuery):
             sticker_msg_id = sticker_msg.message_id
         except Exception as e:
             logger.warning(f"Failed to send sticker {sticker_id}: {e}")
-    
-    # ПОТОМ отправляем информацию о машине как новое сообщение
-    main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
-    
-    # Сохраняем ID стикера и ID сообщения с инфо
-    LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
+
+    # Редактируем сохраненное сообщение гаража вместо отправки нового
+    if call.from_user.id in GARAGE_MESSAGE_ID:
+        try:
+            await bot.edit_message_text(
+                caption,
+                chat_id=call.message.chat.id,
+                message_id=GARAGE_MESSAGE_ID[call.from_user.id],
+                reply_markup=kb,
+                parse_mode="HTML",
+            )
+            LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (
+                sticker_msg_id,
+                GARAGE_MESSAGE_ID[call.from_user.id],
+            )
+        except Exception as e:
+            logger.warning(f"Failed to edit garage message: {e}")
+    else:
+        await call.message.edit_text(caption, reply_markup=kb, parse_mode="HTML")
+        GARAGE_MESSAGE_ID[call.from_user.id] = call.message.message_id
+        LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (
+            sticker_msg_id,
+            call.message.message_id,
+        )
 
 
 # =========================
@@ -1500,8 +1530,14 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = card.get("sell_price", 0)
 
-    # Очищаем только отслеживание, стикер остается
+    # Удаляем предыдущий стикер, если был
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
+        try:
+            sticker_msg_id, _ = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+        except Exception:
+            pass
         del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
 
     # Продаём машину
