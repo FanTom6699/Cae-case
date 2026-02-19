@@ -1448,7 +1448,7 @@ async def car_view(call: CallbackQuery):
         except Exception:
             pass
     
-    # Отправляем НОВЫЙ стикер
+    # СНАЧАЛА отправляем НОВЫЙ стикер (будет первым)
     sticker_msg_id = None
     sticker_id = card.get("sticker_id", "").strip()
     if sticker_id:
@@ -1458,27 +1458,11 @@ async def car_view(call: CallbackQuery):
         except Exception as e:
             logger.warning(f"Failed to send sticker {sticker_id}: {e}")
     
-    # Редактируем сохраненное сообщение гаража вместо отправки нового
-    if call.from_user.id in GARAGE_MESSAGE_ID:
-        try:
-            await bot.edit_message_text(
-                caption,
-                chat_id=call.message.chat.id,
-                message_id=GARAGE_MESSAGE_ID[call.from_user.id],
-                reply_markup=kb,
-                parse_mode="HTML"
-            )
-            # Сохраняем ID стикера и ID отредактированного сообщения (гаража)
-            LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, GARAGE_MESSAGE_ID[call.from_user.id])
-        except Exception as e:
-            logger.warning(f"Failed to edit garage message: {e}")
-            # Если редактирование не сработало, отправляем новое сообщение (fallback)
-            main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
-            LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
-    else:
-        # Fallback если нет сохраненного сообщения
-        main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
-        LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
+    # ПОТОМ отправляем информацию о машине как новое сообщение
+    main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
+    
+    # Сохраняем ID стикера и ID сообщения с инфо
+    LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
 
 
 # =========================
