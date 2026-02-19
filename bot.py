@@ -1451,12 +1451,14 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    # Удаляем старый стикер, если был открыт другой автомобиль
+    # Удаляем старый стикер и прошлое текстовое сообщение
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
-            old_sticker_id, _ = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            old_sticker_id, old_main_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
             if old_sticker_id:
                 await bot.delete_message(call.message.chat.id, old_sticker_id)
+            if old_main_id:
+                await bot.delete_message(call.message.chat.id, old_main_id)
         except Exception:
             pass
     
@@ -1470,29 +1472,10 @@ async def car_view(call: CallbackQuery):
         except Exception as e:
             logger.warning(f"Failed to send sticker {sticker_id}: {e}")
 
-    # Редактируем сохраненное сообщение гаража вместо отправки нового
-    if call.from_user.id in GARAGE_MESSAGE_ID:
-        try:
-            await bot.edit_message_text(
-                caption,
-                chat_id=call.message.chat.id,
-                message_id=GARAGE_MESSAGE_ID[call.from_user.id],
-                reply_markup=kb,
-                parse_mode="HTML",
-            )
-            LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (
-                sticker_msg_id,
-                GARAGE_MESSAGE_ID[call.from_user.id],
-            )
-        except Exception as e:
-            logger.warning(f"Failed to edit garage message: {e}")
-    else:
-        await call.message.edit_text(caption, reply_markup=kb, parse_mode="HTML")
-        GARAGE_MESSAGE_ID[call.from_user.id] = call.message.message_id
-        LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (
-            sticker_msg_id,
-            call.message.message_id,
-        )
+    # Отправляем текстовое сообщение после стикера (стикер будет первым)
+    main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
+    GARAGE_MESSAGE_ID[call.from_user.id] = main_msg.message_id
+    LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
 
 
 # =========================
