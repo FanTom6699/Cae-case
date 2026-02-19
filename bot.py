@@ -666,7 +666,7 @@ async def start_menu(call: CallbackQuery):
         await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
         return
     
-    # Удаляем стикер машины если был открыт просмотр
+    # Удаляем только стикер если был открыт просмотр
     if call.from_user.id in LAST_STICKER_MESSAGE_ID:
         try:
             await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
@@ -1300,7 +1300,7 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
-    # Удаляем стикер машины если был открыт просмотр
+    # Удаляем только стикер если был открыт просмотр
     if call.from_user.id in LAST_STICKER_MESSAGE_ID:
         try:
             await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
@@ -1420,7 +1420,7 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    # Редактируем текст (без стикеров в messge, одно сообщение)
+    # Просто редактируем одно сообщение гаража
     await call.message.edit_text(caption, reply_markup=kb, parse_mode="HTML")
 
 
@@ -1459,7 +1459,7 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = card.get("sell_price", 0)
 
-    # Удаляем стикер машины если был
+    # Удаляем только стикер если был
     if call.from_user.id in LAST_STICKER_MESSAGE_ID:
         try:
             await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
@@ -1478,7 +1478,7 @@ async def sell_car(call: CallbackQuery):
         sell_price,
     )
 
-    # Редактируем сообщение вместо отправки нового
+    # Редактируем сообщение
     await call.message.edit_text(
         f"{header()}\n\n"
         f"✅ <b>Машина продана!</b>\n\n"
