@@ -667,17 +667,9 @@ async def start_menu(call: CallbackQuery):
         await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
         return
     
-    # Удаляем оба сообщения (стикер и основное) если был открыт просмотр
+    # Очищаем только отслеживание, стикер остается
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
-        try:
-            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-            if sticker_msg_id:
-                await bot.delete_message(call.message.chat.id, sticker_msg_id)
-            if main_msg_id:
-                await bot.delete_message(call.message.chat.id, main_msg_id)
-            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-        except Exception:
-            pass
+        del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
     
     # Просто редактируем текущее сообщение на меню
     await call.message.edit_text(
@@ -1305,17 +1297,9 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
-    # Удаляем оба сообщения (стикер и основное) если был открыт просмотр
+    # Очищаем только отслеживание, стикер остается
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
-        try:
-            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-            if sticker_msg_id:
-                await bot.delete_message(call.message.chat.id, sticker_msg_id)
-            if main_msg_id:
-                await bot.delete_message(call.message.chat.id, main_msg_id)
-            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-        except Exception:
-            pass
+        del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
 
     if not cars:
         text = f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}"
@@ -1455,7 +1439,16 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    # Отправляем стикер ПЕРВЫМ (вверху)
+    # Удаляем старый стикер если был открыт другой автомобиль
+    if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
+        try:
+            old_sticker_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id][0]
+            if old_sticker_id:
+                await bot.delete_message(call.message.chat.id, old_sticker_id)
+        except Exception:
+            pass
+    
+    # Отправляем НОВЫЙ стикер
     sticker_msg_id = None
     sticker_id = card.get("sticker_id", "").strip()
     if sticker_id:
@@ -1523,17 +1516,9 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = card.get("sell_price", 0)
 
-    # Удаляем оба сообщения (стикер и основное) если были
+    # Очищаем только отслеживание, стикер остается
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
-        try:
-            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-            if sticker_msg_id:
-                await bot.delete_message(call.message.chat.id, sticker_msg_id)
-            if main_msg_id:
-                await bot.delete_message(call.message.chat.id, main_msg_id)
-            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
-        except Exception:
-            pass
+        del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
 
     # Продаём машину
     delete_car_from_garage(car_id)
