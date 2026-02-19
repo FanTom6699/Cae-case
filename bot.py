@@ -308,12 +308,12 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     if stat_type == "coins":
         top = get_top_users_by_coins(10)
         title = "🏆 <b>ТОП ПО МОНЕТАМ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'({i})')} <b>{row['first_name'] or 'Unknown'}</b> — {row['coins']} 💰"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['coins']} 💰"
     else:
         top = get_top_users_by_collection(10)
         total_cards = len(CARDS)
         title = "🚗 <b>ТОП ПО КОЛЛЕКЦИИ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'({i})')} <b>{row['first_name'] or 'Unknown'}</b> — {row['count']}/{total_cards} 🚗"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['count']}/{total_cards} 🚗"
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     lines = []
