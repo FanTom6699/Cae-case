@@ -94,7 +94,7 @@ GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
 FEEDBACK_PENDING = {}
-LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
+LAST_CAR_VIEW_MESSAGE_IDS = {}  # user_id -> (sticker_id, main_message_id)
 LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
 
 FEEDBACK_CATEGORIES = [
@@ -666,11 +666,15 @@ async def start_menu(call: CallbackQuery):
         await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
         return
     
-    # Удаляем только стикер если был открыт просмотр
-    if call.from_user.id in LAST_STICKER_MESSAGE_ID:
+    # Удаляем оба сообщения (стикер и основное) если был открыт просмотр
+    if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
-            await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
-            del LAST_STICKER_MESSAGE_ID[call.from_user.id]
+            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+            if main_msg_id:
+                await bot.delete_message(call.message.chat.id, main_msg_id)
+            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
         except Exception:
             pass
     
@@ -1300,11 +1304,15 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
-    # Удаляем только стикер если был открыт просмотр
-    if call.from_user.id in LAST_STICKER_MESSAGE_ID:
+    # Удаляем оба сообщения (стикер и основное) если был открыт просмотр
+    if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
-            await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
-            del LAST_STICKER_MESSAGE_ID[call.from_user.id]
+            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+            if main_msg_id:
+                await bot.delete_message(call.message.chat.id, main_msg_id)
+            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
         except Exception:
             pass
 
@@ -1393,15 +1401,6 @@ async def car_view(call: CallbackQuery):
 
     await call.answer()  # Подтверждаем callback
     
-    # Отправляем стикер если есть
-    sticker_id = card.get("sticker_id", "").strip()
-    if sticker_id:
-        try:
-            sticker_msg = await call.message.answer_sticker(sticker_id)
-            LAST_STICKER_MESSAGE_ID[call.from_user.id] = sticker_msg.message_id
-        except Exception as e:
-            logger.warning(f"Failed to send sticker {sticker_id}: {e}")
-    
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
@@ -1420,8 +1419,21 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    # Просто редактируем одно сообщение гаража
-    await call.message.edit_text(caption, reply_markup=kb, parse_mode="HTML")
+    # Отправляем стикер ПЕРВЫМ (вверху)
+    sticker_msg_id = None
+    sticker_id = card.get("sticker_id", "").strip()
+    if sticker_id:
+        try:
+            sticker_msg = await call.message.answer_sticker(sticker_id)
+            sticker_msg_id = sticker_msg.message_id
+        except Exception as e:
+            logger.warning(f"Failed to send sticker {sticker_id}: {e}")
+    
+    # Потом отправляем основное сообщение (внизу)
+    main_msg = await call.message.answer(caption, reply_markup=kb, parse_mode="HTML")
+    
+    # Сохраняем оба ID для последующего удаления
+    LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id] = (sticker_msg_id, main_msg.message_id)
 
 
 # =========================
@@ -1459,11 +1471,15 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = card.get("sell_price", 0)
 
-    # Удаляем только стикер если был
-    if call.from_user.id in LAST_STICKER_MESSAGE_ID:
+    # Удаляем оба сообщения (стикер и основное) если были
+    if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
-            await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
-            del LAST_STICKER_MESSAGE_ID[call.from_user.id]
+            sticker_msg_id, main_msg_id = LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+            if sticker_msg_id:
+                await bot.delete_message(call.message.chat.id, sticker_msg_id)
+            if main_msg_id:
+                await bot.delete_message(call.message.chat.id, main_msg_id)
+            del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
         except Exception:
             pass
 
