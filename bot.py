@@ -95,7 +95,7 @@ GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "
 GROUP_CASE_RATE_LIMIT = {}
 FEEDBACK_PENDING = {}
 LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
-LAST_GARAGE_MESSAGE_ID = {}   # user_id -> message_id последнего сообщения гаража
+LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
 
 FEEDBACK_CATEGORIES = [
     ("review", "Отзыв об игре"),
@@ -674,29 +674,14 @@ async def start_menu(call: CallbackQuery):
         except Exception:
             pass
     
-    # Очищаем сохранённый ID гаража
-    if call.from_user.id in LAST_GARAGE_MESSAGE_ID:
-        del LAST_GARAGE_MESSAGE_ID[call.from_user.id]
-    
-    # Если сообщение содержит фото (из car_view), удаляем его
-    if call.message.photo or call.message.sticker:
-        await delete_message_safe(call.message)
-        await call.message.answer(
-            f"{header()}\n\n"
-            "Меню\n\n"
-            f"{footer()}",
-            reply_markup=main_menu_kb(),
-            parse_mode="HTML",
-        )
-    else:
-        # Если текстовое сообщение - просто обновляем
-        await call.message.edit_text(
-            f"{header()}\n\n"
-            "Меню\n\n"
-            f"{footer()}",
-            reply_markup=main_menu_kb(),
-            parse_mode="HTML",
-        )
+    # Просто редактируем текущее сообщение на меню
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "Меню\n\n"
+        f"{footer()}",
+        reply_markup=main_menu_kb(),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
@@ -1323,34 +1308,14 @@ async def garage(call: CallbackQuery):
         except Exception:
             pass
 
-    # Удаляем текущее сообщение (информация о машине) и получаем ID старого сообщения гаража
-    old_msg_id = LAST_GARAGE_MESSAGE_ID.get(call.from_user.id)
-    await delete_message_safe(call.message)
-    
-    # Если сохранилось старое сообщение гаража - редактируем его, иначе отправляем новое
-    have_old_message = old_msg_id is not None
-    
     if not cars:
-        text = f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}"
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+        await call.message.edit_text(
+            f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+            ),
+            parse_mode="HTML",
         )
-        
-        if have_old_message:
-            try:
-                await bot.edit_message_text(
-                    text,
-                    chat_id=call.message.chat.id,
-                    message_id=old_msg_id,
-                    reply_markup=kb,
-                    parse_mode="HTML"
-                )
-            except Exception:
-                # Если не удалось отредактировать - отправляем новое
-                await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
-        else:
-            await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
-        
         await call.answer()
         return
 
@@ -1381,26 +1346,11 @@ async def garage(call: CallbackQuery):
 
     kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
 
-    text = f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}"
-    markup = InlineKeyboardMarkup(inline_keyboard=kb)
-    
-    if have_old_message:
-        try:
-            await bot.edit_message_text(
-                text,
-                chat_id=call.message.chat.id,
-                message_id=old_msg_id,
-                reply_markup=markup,
-                parse_mode="HTML"
-            )
-        except Exception:
-            # Если не удалось отредактировать - отправляем новое
-            new_msg = await call.message.answer(text, reply_markup=markup, parse_mode="HTML")
-            LAST_GARAGE_MESSAGE_ID[call.from_user.id] = new_msg.message_id
-    else:
-        new_msg = await call.message.answer(text, reply_markup=markup, parse_mode="HTML")
-        LAST_GARAGE_MESSAGE_ID[call.from_user.id] = new_msg.message_id
-    
+    await call.message.edit_text(
+        f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
     await call.answer()
 
 
@@ -1441,10 +1391,16 @@ async def car_view(call: CallbackQuery):
     emoji = RARITY_EMOJI.get(car["rarity"], "❓")
     sell_price = card.get("sell_price", 0)
 
-    # Сохраняем ID текущего сообщения гаража (перед переходом в просмотр машины)
-    LAST_GARAGE_MESSAGE_ID[call.from_user.id] = call.message.message_id
+    await call.answer()  # Подтверждаем callback
     
-    await call.answer()  # Подтверждаем callback после проверок
+    # Отправляем стикер если есть
+    sticker_id = card.get("sticker_id", "").strip()
+    if sticker_id:
+        try:
+            sticker_msg = await call.message.answer_sticker(sticker_id)
+            LAST_STICKER_MESSAGE_ID[call.from_user.id] = sticker_msg.message_id
+        except Exception as e:
+            logger.warning(f"Failed to send sticker {sticker_id}: {e}")
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1464,10 +1420,8 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    success = await send_car_image(call.message, card, car["rarity"], caption, reply_markup=kb, user_id=call.from_user.id)
-    if not success:
-        # Если нет фото - отправим текст с кнопками
-        await call.message.answer(caption, parse_mode="HTML", reply_markup=kb)
+    # Редактируем текст (без стикеров в messge, одно сообщение)
+    await call.message.edit_text(caption, reply_markup=kb, parse_mode="HTML")
 
 
 # =========================
@@ -1505,6 +1459,14 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = card.get("sell_price", 0)
 
+    # Удаляем стикер машины если был
+    if call.from_user.id in LAST_STICKER_MESSAGE_ID:
+        try:
+            await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
+            del LAST_STICKER_MESSAGE_ID[call.from_user.id]
+        except Exception:
+            pass
+
     # Продаём машину
     delete_car_from_garage(car_id)
     add_coins(call.from_user.id, sell_price)
@@ -1516,8 +1478,8 @@ async def sell_car(call: CallbackQuery):
         sell_price,
     )
 
-    await delete_message_safe(call.message)
-    await call.message.answer(
+    # Редактируем сообщение вместо отправки нового
+    await call.message.edit_text(
         f"{header()}\n\n"
         f"✅ <b>Машина продана!</b>\n\n"
         f"🚘 {card['name_ru']}\n"
