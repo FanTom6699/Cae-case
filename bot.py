@@ -94,6 +94,7 @@ GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
 FEEDBACK_PENDING = {}
+LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
 
 FEEDBACK_CATEGORIES = [
     ("review", "Отзыв об игре"),
@@ -348,7 +349,7 @@ def group_case_rate_limit_ok(chat_id, user_id):
 # SEND CAR IMAGE HELPER
 # =========================
 
-async def send_car_image(target, card, car_rarity, caption, reply_markup=None):
+async def send_car_image(target, card, car_rarity, caption, reply_markup=None, user_id=None):
     """
     Универсальная функция для отправки изображения машины
     Приоритет: sticker_id > image файл > текст
@@ -358,6 +359,7 @@ async def send_car_image(target, card, car_rarity, caption, reply_markup=None):
     car_rarity: редкость машины
     caption: текст подписи
     reply_markup: клавиатура (опционально)
+    user_id: ID пользователя (для сохранения ID стикера)
     """
     # Проверяем наличие sticker_id (приоритет) - НЕ пустая строка!
     sticker_id = card.get("sticker_id", "").strip()
@@ -365,7 +367,10 @@ async def send_car_image(target, card, car_rarity, caption, reply_markup=None):
     if sticker_id:  # Теперь проверяет что строка не пустая
         # Отправляем стикер
         try:
-            await target.answer_sticker(sticker_id)
+            sticker_message = await target.answer_sticker(sticker_id)
+            # Сохраняем ID стикера для последующего удаления
+            if user_id:
+                LAST_STICKER_MESSAGE_ID[user_id] = sticker_message.message_id
             # После стикера отправляем текст с информацией
             if reply_markup:
                 await target.answer(caption, parse_mode="HTML", reply_markup=reply_markup)
@@ -1156,7 +1161,7 @@ async def buy_case(call: CallbackQuery):
         f"{footer()}"
     )
     
-    success = await send_car_image(call.message, card, rarity, caption)
+    success = await send_car_image(call.message, card, rarity, caption, user_id=call.from_user.id)
     if not success:
         # Если нет фото - отправим текст с кнопкой
         await call.message.answer(
@@ -1260,7 +1265,7 @@ async def free_case(call: CallbackQuery):
         f"{footer()}"
     )
     
-    success = await send_car_image(call.message, card, rarity, caption)
+    success = await send_car_image(call.message, card, rarity, caption, user_id=call.from_user.id)
     if not success:
         # Если нет фото - отправим текст с кнопкой
         await call.message.answer(
@@ -1300,6 +1305,14 @@ async def garage(call: CallbackQuery):
     # Если сообщение содержит фото или стикер (пришли из car_view), удаляем его
     if call.message.photo or call.message.sticker:
         await delete_message_safe(call.message)
+    
+    # Удаляем сохранённый стикер если есть
+    if call.from_user.id in LAST_STICKER_MESSAGE_ID:
+        try:
+            await bot.delete_message(call.message.chat.id, LAST_STICKER_MESSAGE_ID[call.from_user.id])
+            del LAST_STICKER_MESSAGE_ID[call.from_user.id]
+        except Exception:
+            pass
         # Создаем новое сообщение с гаражом
         if not cars:
             await call.message.answer(
@@ -1438,7 +1451,7 @@ async def car_view(call: CallbackQuery):
         f"{footer()}"
     )
     
-    success = await send_car_image(call.message, card, car["rarity"], caption, reply_markup=kb)
+    success = await send_car_image(call.message, card, car["rarity"], caption, reply_markup=kb, user_id=call.from_user.id)
     if not success:
         # Если нет фото - отправим текст с кнопками
         await call.message.answer(caption, parse_mode="HTML", reply_markup=kb)
@@ -1776,7 +1789,7 @@ async def group_text_trigger(message: Message):
         f"{footer()}"
     )
     
-    success = await send_car_image(message, card, rarity, caption)
+    success = await send_car_image(message, card, rarity, caption, user_id=message.from_user.id)
     if not success:
         # Если нет фото в группе - отправим просто текст
         await message.answer(caption, parse_mode="HTML")
