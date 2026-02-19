@@ -89,7 +89,7 @@ EPIC_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Epic"]
 LEGENDARY_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Legendary"]
 ALL_CARDS = list(CARDS.keys())
 
-FREE_CASE_COOLDOWN = timedelta(hours=5)
+FREE_CASE_COOLDOWN = timedelta(hours=4)
 GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
@@ -659,14 +659,26 @@ async def start_menu(call: CallbackQuery):
     if call.message.chat.type != "private":
         await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
         return
-        
-    await call.message.edit_text(
-        f"{header()}\n\n"
-        "Меню\n\n"
-        f"{footer()}",
-        reply_markup=main_menu_kb(),
-        parse_mode="HTML",
-    )
+    
+    # Если сообщение содержит фото (из car_view), удаляем его
+    if call.message.photo or call.message.sticker:
+        await delete_message_safe(call.message)
+        await call.message.answer(
+            f"{header()}\n\n"
+            "Меню\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
+    else:
+        # Если текстовое сообщение - просто обновляем
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "Меню\n\n"
+            f"{footer()}",
+            reply_markup=main_menu_kb(),
+            parse_mode="HTML",
+        )
     await call.answer()
 
 
