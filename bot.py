@@ -1297,8 +1297,8 @@ async def garage(call: CallbackQuery):
         return
     cars = get_user_garage(user["user_id"])
 
-    # Если сообщение содержит фото (пришли из car_view), удаляем его
-    if call.message.photo:
+    # Если сообщение содержит фото или стикер (пришли из car_view), удаляем его
+    if call.message.photo or call.message.sticker:
         await delete_message_safe(call.message)
         # Создаем новое сообщение с гаражом
         if not cars:
