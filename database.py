@@ -750,6 +750,17 @@ def update_last_free_case_time(user_id):
     conn.close()
 
 
+def update_last_case_time(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET last_case_time = ? WHERE user_id = ?",
+        (datetime.utcnow().isoformat(), user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
 # =========================
 # CASES
 # =========================

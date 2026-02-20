@@ -36,6 +36,7 @@ from database import (
     remove_common_case,
     add_car_to_garage,
     get_user_garage,
+    update_last_case_time,
     update_last_free_case_time,
     get_car_by_id,
     delete_car_from_garage,
@@ -112,6 +113,7 @@ LEGENDARY_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Legendary"]
 ALL_CARDS = list(CARDS.keys())
 
 FREE_CASE_COOLDOWN = timedelta(hours=4)
+PAID_CASE_COOLDOWN = timedelta(seconds=int(os.getenv("PAID_CASE_COOLDOWN_SECONDS", "45")))
 GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
@@ -141,6 +143,20 @@ RARITY_RU = {
     "Rare": "Редкая",
     "Epic": "Эпическая",
     "Legendary": "Легендарная",
+}
+
+SELL_PRICE_MULTIPLIER = {
+    "Common": 0.45,
+    "Rare": 0.50,
+    "Epic": 0.06,
+    "Legendary": 0.04,
+}
+
+SELL_PRICE_BOUNDS = {
+    "Common": (2500, 12000),
+    "Rare": (13000, 28000),
+    "Epic": (30000, 90000),
+    "Legendary": (100000, 260000),
 }
 
 DAILY_TASKS = {
@@ -202,13 +218,32 @@ def draw_card_from_lists(user_id, primary_cards, fallback_cards):
     """Выбирает машину без дублей; если в primary пусто, берет из fallback."""
     available_primary = [c for c in primary_cards if not has_car_in_garage(user_id, c)]
     if available_primary:
-        return random.choice(available_primary)
+        return draw_weighted_card_by_price(available_primary)
 
     available_fallback = [c for c in fallback_cards if not has_car_in_garage(user_id, c)]
     if available_fallback:
-        return random.choice(available_fallback)
+        return draw_weighted_card_by_price(available_fallback)
 
     return None
+
+
+def draw_weighted_card_by_price(card_ids):
+    """Чем дороже машина, тем ниже шанс выпадения; чем дешевле, тем выше."""
+    if not card_ids:
+        return None
+
+    weights = []
+    for card_id in card_ids:
+        card = CARDS.get(card_id, {})
+        rarity = card.get("rarity", "Common")
+        effective_price = max(1, get_effective_sell_price(card, rarity_override=rarity))
+
+        # Инверсная зависимость: высокая цена -> меньший вес.
+        # Степень > 1 усиливает различия между дорогими и дешевыми моделями.
+        weight = 1.0 / (effective_price ** 1.15)
+        weights.append(weight)
+
+    return random.choices(card_ids, weights=weights, k=1)[0]
 
 # =========================
 # UI HELPERS
@@ -553,6 +588,30 @@ def free_case_available(user):
     if diff >= FREE_CASE_COOLDOWN:
         return True, None
     return False, FREE_CASE_COOLDOWN - diff
+
+
+def paid_case_available(user):
+    if not user["last_case_time"]:
+        return True, None
+    last = datetime.fromisoformat(user["last_case_time"])
+    now = datetime.utcnow()
+    diff = now - last
+    if diff >= PAID_CASE_COOLDOWN:
+        return True, None
+    return False, PAID_CASE_COOLDOWN - diff
+
+
+def get_effective_sell_price(card, rarity_override=None):
+    base_price = int(card.get("sell_price", 0) or 0)
+    if base_price <= 0:
+        return 0
+
+    rarity = rarity_override or card.get("rarity", "Common")
+    multiplier = SELL_PRICE_MULTIPLIER.get(rarity, 0.40)
+    min_price, max_price = SELL_PRICE_BOUNDS.get(rarity, (1000, 50000))
+
+    adjusted = int(round(base_price * multiplier))
+    return max(min_price, min(max_price, adjusted))
 
 
 async def send_stats(target, from_callback=False):
@@ -1780,6 +1839,15 @@ async def buy_case(call: CallbackQuery):
 
     case_info = cases[case_type]
 
+    can_open_paid, paid_remaining = paid_case_available(user)
+    if not can_open_paid:
+        seconds_left = max(1, int(paid_remaining.total_seconds()))
+        await call.answer(
+            f"⏳ Подожди {seconds_left} сек перед следующим платным кейсом",
+            show_alert=True,
+        )
+        return
+
     if user["coins"] < case_info["price"]:
         await call.answer("❌ Недостаточно Coins!", show_alert=True)
         return
@@ -1814,6 +1882,7 @@ async def buy_case(call: CallbackQuery):
     
     # Вычитаем Coins только если машина доступна
     subtract_coins(call.from_user.id, case_info["price"])
+    update_last_case_time(call.from_user.id)
 
     card = CARDS[card_id]
     rarity = card["rarity"]
@@ -1836,7 +1905,7 @@ async def buy_case(call: CallbackQuery):
     )
 
     emoji = RARITY_EMOJI.get(rarity, "❓")
-    sell_price = card.get("sell_price", 0)
+    sell_price = get_effective_sell_price(card)
     
     await delete_message_safe(call.message)
     
@@ -1948,7 +2017,7 @@ async def free_case(call: CallbackQuery):
     )
 
     await delete_message_safe(call.message)
-    sell_price = card.get("sell_price", 0)
+    sell_price = get_effective_sell_price(card)
     
     caption = (
         f"{header()}\n\n"
@@ -2139,7 +2208,7 @@ async def car_view(call: CallbackQuery):
             "sell_price": 0,
         }
     emoji = RARITY_EMOJI.get(car["rarity"], "❓")
-    sell_price = card.get("sell_price", 0)
+    sell_price = get_effective_sell_price(card, rarity_override=car["rarity"])
 
     await call.answer()  # Подтверждаем callback
     
@@ -2232,7 +2301,7 @@ async def sell_car(call: CallbackQuery):
             "name_ru": car["name"],
             "sell_price": 0,
         }
-    sell_price = card.get("sell_price", 0)
+    sell_price = get_effective_sell_price(card, rarity_override=car["rarity"])
 
     # Удаляем предыдущий стикер, если был
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
@@ -2538,7 +2607,7 @@ async def group_text_trigger(message: Message):
         card_id,
         rarity,
     )
-    sell_price = card.get("sell_price", 0)
+    sell_price = get_effective_sell_price(card)
 
     caption = (
         f"{header()}\n\n"
