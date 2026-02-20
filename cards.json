@@ -1,650 +1,650 @@
 {
-  "toyota_camry": {
-    "name_ru": "Тойота Камри",
-    "name_en": "Toyota Camry",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICo2mWhVez--1ZbndXtfJEhgG4MiOSAAJOkAACnpKwSAVCBoOiluN8OgQ",
-    "sell_price": 85
-  },
-  "honda_civic": {
-    "name_ru": "Хонда Сивик",
-    "name_en": "Honda Civic",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICp2mWhoxnGDpNbyTfxOjspiSrthO-AAJUkAACnpKwSIZsHlaugr0rOgQ",
-    "sell_price": 75
-  },
-  "ford_focus": {
-    "name_ru": "Форд Фокус",
-    "name_en": "Ford Focus",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICrmmWm_EHNjDP1UnyeOGSLdVtY-AgAAK7kAACnpKwSHmT84sk4KqEOgQ",
-    "sell_price": 70
-  },
-  "volkswagen_golf": {
-    "name_ru": "Фольксваген Гольф",
-    "name_en": "Volkswagen Golf",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICsmmWnNAsdQ9nbitL0YpvGws1sWwzAALFkAACnpKwSDDadcARJXgpOgQ",
-    "sell_price": 80
-  },
-  "hyundai_solaris": {
-    "name_ru": "Хендай Солярис",
-    "name_en": "Hyundai Solaris",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICtmmWnfPA-nBg6dO8K4K4JVP5wOebAALRkAACnpKwSDkX33m3_pAIOgQ",
-    "sell_price": 65
-  },
-  "kia_rio": {
-    "name_ru": "Киа Рио",
-    "name_en": "Kia Rio",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICummWnrZ-ck_vYD3AAwOk7jC372NwAALckAACnpKwSLM0vQJ5wlLHOgQ",
-    "sell_price": 60
-  },
-  "lada_vesta": {
-    "name_ru": "Лада Веста",
-    "name_en": "Lada Vesta",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICvmmWoRYDmgf6lwMryCcUaxvUezFOAALykAACnpKwSMgc6WueG8V7OgQ",
-    "sell_price": 55
-  },
-  "lada_granta": {
-    "name_ru": "Лада Гранта",
-    "name_en": "Lada Granta",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICwmmWoiKpFnoFqCAbCOaHZLS0LYNvAAIGkQACnpKwSNKk-f6EH6XmOgQ",
-    "sell_price": 50
-  },
-  "uaz_patriot": {
-    "name_ru": "УАЗ Патриот",
-    "name_en": "UAZ Patriot",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICxmmWwwsY_Pg_pwlYbiedCz2sWN0iAAJzkgACnpKwSFLuY4trShl7OgQ",
-    "sell_price": 90
-  },
-  "vaz_2101": {
-    "name_ru": "ВАЗ-2101",
-    "name_en": "VAZ-2101",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 45
-  },
-  "vaz_2106": {
-    "name_ru": "ВАЗ-2106",
-    "name_en": "VAZ-2106",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 48
-  },
-  "vaz_2107": {
-    "name_ru": "ВАЗ-2107",
-    "name_en": "VAZ-2107",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 52
-  },
-  "moskvich_412": {
-    "name_ru": "Москвич-412",
-    "name_en": "Moskvich-412",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 58
-  },
-  "gaz_24_volga": {
-    "name_ru": "ГАЗ-24 Волга",
-    "name_en": "GAZ-24 Volga",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 95
-  },
-  "mazda_3": {
-    "name_ru": "Мазда 3",
-    "name_en": "Mazda 3",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 78
-  },
-  "subaru_impreza": {
-    "name_ru": "Субару Импреза",
-    "name_en": "Subaru Impreza",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 87
-  },
-  "toyota_corolla": {
-    "name_ru": "Тойота Королла",
-    "name_en": "Toyota Corolla",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 82
-  },
-  "nissan_altima": {
-    "name_ru": "Ниссан Альтима",
-    "name_en": "Nissan Altima",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 72
-  },
-  "mitsubishi_lancer": {
-    "name_ru": "Мицубиси Лансер",
-    "name_en": "Mitsubishi Lancer",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 68
-  },
-  "chevrolet_cruze": {
-    "name_ru": "Шевроле Крузе",
-    "name_en": "Chevrolet Cruze",
-    "rarity": "Common",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 62
-  },
-  "bmw_3_series": {
-    "name_ru": "БМВ 3 Серия",
-    "name_en": "BMW 3 Series",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 310
-  },
-  "mercedes_c_class": {
-    "name_ru": "Мерседес C-Класс",
-    "name_en": "Mercedes-Benz C-Class",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 330
-  },
-  "audi_a4": {
-    "name_ru": "Ауди A4",
-    "name_en": "Audi A4",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 290
-  },
-  "volkswagen_passat": {
-    "name_ru": "Фольксваген Пассат",
-    "name_en": "Volkswagen Passat",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAICS2mVsAr9tYmH7B3g1yZhVk4laF2mAAIckgACRK-wSF2HqCj0KboEOgQ",
-    "sell_price": 280
-  },
-  "skoda_superb": {
-    "name_ru": "Шкода Суперб",
-    "name_en": "Skoda Superb",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "CAACAgIAAxkDAAIChmmVwYGOqa-3l0UoSPyFdzUiDar8AALXkwACRK-wSGSuyrLi0E1DOgQ",
-    "sell_price": 270
-  },
-  "hyundai_sonata": {
-    "name_ru": "Хендай Соната",
-    "name_en": "Hyundai Sonata",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 260
-  },
-  "kia_optima": {
-    "name_ru": "Киа Оптима",
-    "name_en": "Kia Optima",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 250
-  },
-  "honda_accord": {
-    "name_ru": "Хонда Аккорд",
-    "name_en": "Honda Accord",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 320
-  },
-  "toyota_camry_new": {
-    "name_ru": "Тойота Камри (новая)",
-    "name_en": "Toyota Camry (new)",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 340
-  },
-  "nissan_maxima": {
-    "name_ru": "Ниссан Максима",
-    "name_en": "Nissan Maxima",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 300
-  },
-  "mazda_6": {
-    "name_ru": "Мазда 6",
-    "name_en": "Mazda 6",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 305
-  },
-  "subaru_legacy": {
-    "name_ru": "Субару Лейси",
-    "name_en": "Subaru Legacy",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 315
-  },
-  "volvo_s60": {
-    "name_ru": "Вольво S60",
-    "name_en": "Volvo S60",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 325
-  },
-  "jaguar_xe": {
-    "name_ru": "Ягуар XE",
-    "name_en": "Jaguar XE",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 335
-  },
-  "infiniti_q50": {
-    "name_ru": "Инфинити Q50",
-    "name_en": "Infiniti Q50",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 295
-  },
-  "acura_tlx": {
-    "name_ru": "Акура TLX",
-    "name_en": "Acura TLX",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 285
-  },
-  "lexus_is": {
-    "name_ru": "Лексус IS",
-    "name_en": "Lexus IS",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 350
-  },
-  "bmw_5_series": {
-    "name_ru": "БМВ 5 Серия",
-    "name_en": "BMW 5 Series",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 360
-  },
-  "mercedes_e_class": {
-    "name_ru": "Мерседес E-Класс",
-    "name_en": "Mercedes-Benz E-Class",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 370
-  },
-  "audi_a6": {
-    "name_ru": "Ауди A6",
-    "name_en": "Audi A6",
-    "rarity": "Rare",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 355
-  },
-  "porsche_911": {
-    "name_ru": "Порше 911",
-    "name_en": "Porsche 911",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1050
-  },
-  "lamborghini_huracan": {
-    "name_ru": "Ламборджини Хуракан",
-    "name_en": "Lamborghini Huracán",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1150
-  },
-  "ferrari_sf90": {
-    "name_ru": "Феррари SF90",
-    "name_en": "Ferrari SF90",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1200
-  },
-  "mclaren_720s": {
-    "name_ru": "МакЛарен 720S",
-    "name_en": "McLaren 720S",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1100
-  },
-  "bugatti_divo": {
-    "name_ru": "Бугатти Дивo",
-    "name_en": "Bugatti Divo",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1300
-  },
-  "pagani_huayra": {
-    "name_ru": "Паганi Хуайра",
-    "name_en": "Pagani Huayra",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1180
-  },
-  "koenigsegg_jesko": {
-    "name_ru": "Кёниггсегг Йеско",
-    "name_en": "Koenigsegg Jesko",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1350
-  },
-  "ssc_tuatara": {
-    "name_ru": "SSC Туатара",
-    "name_en": "SSC Tuatara",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1250
-  },
-  "hennessey_venom_f5": {
-    "name_ru": "Хеннесси Venom F5",
-    "name_en": "Hennessey Venom F5",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1220
-  },
-  "aspark_owl": {
-    "name_ru": "Аспарк Сова",
-    "name_en": "Aspark Owl",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1320
-  },
-  "rimac_concept_two": {
-    "name_ru": "Римак Концепт Две",
-    "name_en": "Rimac Concept Two",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1280
-  },
-  "lotus_evija": {
-    "name_ru": "Лотус Эвиджа",
-    "name_en": "Lotus Evija",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1160
-  },
-  "pininfarina_battista": {
-    "name_ru": "Пининфарина Баттista",
-    "name_en": "Pininfarina Battista",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1310
-  },
-  "dodge_viper": {
-    "name_ru": "Додж Вайпер",
-    "name_en": "Dodge Viper",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 950
-  },
-  "chevrolet_corvette_c8": {
-    "name_ru": "Шевроле Корвет C8",
-    "name_en": "Chevrolet Corvette C8",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1000
-  },
-  "nissan_gt_r": {
-    "name_ru": "Ниссан GT-R",
-    "name_en": "Nissan GT-R",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1080
-  },
-  "toyota_supra": {
-    "name_ru": "Тойота Супра",
-    "name_en": "Toyota Supra",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 920
-  },
-  "subaru_wrx_sti": {
-    "name_ru": "Субару WRX STI",
-    "name_en": "Subaru WRX STI",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 980
-  },
-  "mitsubishi_lancer_evo": {
-    "name_ru": "Мицубиси Лансер Эволюшн",
-    "name_en": "Mitsubishi Lancer Evolution",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1040
-  },
-  "honda_nsx": {
-    "name_ru": "Хонда NSX",
-    "name_en": "Honda NSX",
-    "rarity": "Epic",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 1130
-  },
-  "bugatti_chiron": {
-    "name_ru": "Бугатти Широн",
-    "name_en": "Bugatti Chiron",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3500
-  },
-  "lamborghini_veneno": {
-    "name_ru": "Ламборджини Венено",
-    "name_en": "Lamborghini Veneno",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3800
-  },
-  "ferrari_la_ferrari": {
-    "name_ru": "Феррари La Ferrari",
-    "name_en": "Ferrari La Ferrari",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3600
-  },
-  "mclaren_f1": {
-    "name_ru": "МакЛарен F1",
-    "name_en": "McLaren F1",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3900
-  },
-  "pagani_zonda": {
-    "name_ru": "Паганi Зонда",
-    "name_en": "Pagani Zonda",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3400
-  },
-  "koenigsegg_one_1": {
-    "name_ru": "Кёниггсегг One:1",
-    "name_en": "Koenigsegg One:1",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3750
-  },
-  "hennessey_venom_gt": {
-    "name_ru": "Хеннесси Venom GT",
-    "name_en": "Hennessey Venom GT",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3200
-  },
-  "koenigsegg_agera_rs": {
-    "name_ru": "Кёниггсегг Агера RS",
-    "name_en": "Koenigsegg Agera RS",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3650
-  },
-  "9ff_gt9": {
-    "name_ru": "9ff GT9",
-    "name_en": "9ff GT9",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2800
-  },
-  "gumpert_apollo": {
-    "name_ru": "Гумперт Аполо",
-    "name_en": "Gumpert Apollo",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2600
-  },
-  "scc_ultimate_aero": {
-    "name_ru": "SSC Ultimate Aero",
-    "name_en": "SSC Ultimate Aero",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2900
-  },
-  "zenvo_st1": {
-    "name_ru": "Zenvo ST1",
-    "name_en": "Zenvo ST1",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2700
-  },
-  "lykan_hypersport": {
-    "name_ru": "Ликан Гиперспорт",
-    "name_en": "Lykan Hypersport",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3100
-  },
-  "ferrari_250_gto": {
-    "name_ru": "Феррари 250 GTO",
-    "name_en": "Ferrari 250 GTO",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 4200
-  },
-  "bugatti_type_57": {
-    "name_ru": "Бугатти Тип 57",
-    "name_en": "Bugatti Type 57",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 4000
-  },
-  "maybach_exelero": {
-    "name_ru": "Майбах Exelero",
-    "name_en": "Maybach Exelero",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3300
-  },
-  "rolls_royce_phantom": {
-    "name_ru": "Роллс-Ройс Фантом",
-    "name_en": "Rolls-Royce Phantom",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3050
-  },
-  "bentley_continental": {
-    "name_ru": "Бентли Континенталь",
-    "name_en": "Bentley Continental",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2950
-  },
-  "mercedes_amg_gt_r": {
-    "name_ru": "Мерседес-АМГ GT R",
-    "name_en": "Mercedes-AMG GT R",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 2700
-  },
-  "porsche_918_spyder": {
-    "name_ru": "Порше 918 Спайдер",
-    "name_en": "Porsche 918 Spyder",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3450
-  },
-  "mclaren_p1": {
-    "name_ru": "МакЛарен P1",
-    "name_en": "McLaren P1",
-    "rarity": "Legendary",
-    "image": "",
-    "sticker_id": "",
-    "sell_price": 3850
-  }
+    "toyota_camry":  {
+                         "name_ru":  "Тойота Камри",
+                         "name_en":  "Toyota Camry",
+                         "rarity":  "Common",
+                         "image":  "",
+                         "sticker_id":  "CAACAgIAAxkDAAICo2mWhVez--1ZbndXtfJEhgG4MiOSAAJOkAACnpKwSAVCBoOiluN8OgQ",
+                         "sell_price":  25000
+                     },
+    "honda_civic":  {
+                        "name_ru":  "Хонда Сивик",
+                        "name_en":  "Honda Civic",
+                        "rarity":  "Common",
+                        "image":  "",
+                        "sticker_id":  "CAACAgIAAxkDAAICp2mWhoxnGDpNbyTfxOjspiSrthO-AAJUkAACnpKwSIZsHlaugr0rOgQ",
+                        "sell_price":  23000
+                    },
+    "ford_focus":  {
+                       "name_ru":  "Форд Фокус",
+                       "name_en":  "Ford Focus",
+                       "rarity":  "Common",
+                       "image":  "",
+                       "sticker_id":  "CAACAgIAAxkDAAICrmmWm_EHNjDP1UnyeOGSLdVtY-AgAAK7kAACnpKwSHmT84sk4KqEOgQ",
+                       "sell_price":  21000
+                   },
+    "volkswagen_golf":  {
+                            "name_ru":  "Фольксваген Гольф",
+                            "name_en":  "Volkswagen Golf",
+                            "rarity":  "Common",
+                            "image":  "",
+                            "sticker_id":  "CAACAgIAAxkDAAICsmmWnNAsdQ9nbitL0YpvGws1sWwzAALFkAACnpKwSDDadcARJXgpOgQ",
+                            "sell_price":  24000
+                        },
+    "hyundai_solaris":  {
+                            "name_ru":  "Хендай Солярис",
+                            "name_en":  "Hyundai Solaris",
+                            "rarity":  "Common",
+                            "image":  "",
+                            "sticker_id":  "CAACAgIAAxkDAAICtmmWnfPA-nBg6dO8K4K4JVP5wOebAALRkAACnpKwSDkX33m3_pAIOgQ",
+                            "sell_price":  12000
+                        },
+    "kia_rio":  {
+                    "name_ru":  "Киа Рио",
+                    "name_en":  "Kia Rio",
+                    "rarity":  "Common",
+                    "image":  "",
+                    "sticker_id":  "CAACAgIAAxkDAAICummWnrZ-ck_vYD3AAwOk7jC372NwAALckAACnpKwSLM0vQJ5wlLHOgQ",
+                    "sell_price":  15000
+                },
+    "lada_vesta":  {
+                       "name_ru":  "Лада Веста",
+                       "name_en":  "Lada Vesta",
+                       "rarity":  "Common",
+                       "image":  "",
+                       "sticker_id":  "CAACAgIAAxkDAAICvmmWoRYDmgf6lwMryCcUaxvUezFOAALykAACnpKwSMgc6WueG8V7OgQ",
+                       "sell_price":  9000
+                   },
+    "lada_granta":  {
+                        "name_ru":  "Лада Гранта",
+                        "name_en":  "Lada Granta",
+                        "rarity":  "Common",
+                        "image":  "",
+                        "sticker_id":  "CAACAgIAAxkDAAICwmmWoiKpFnoFqCAbCOaHZLS0LYNvAAIGkQACnpKwSNKk-f6EH6XmOgQ",
+                        "sell_price":  7000
+                    },
+    "uaz_patriot":  {
+                        "name_ru":  "УАЗ Патриот",
+                        "name_en":  "UAZ Patriot",
+                        "rarity":  "Common",
+                        "image":  "",
+                        "sticker_id":  "CAACAgIAAxkDAAICxmmWwwsY_Pg_pwlYbiedCz2sWN0iAAJzkgACnpKwSFLuY4trShl7OgQ",
+                        "sell_price":  18000
+                    },
+    "vaz_2101":  {
+                     "name_ru":  "ВАЗ-2101",
+                     "name_en":  "VAZ-2101",
+                     "rarity":  "Common",
+                     "image":  "",
+                     "sticker_id":  "",
+                     "sell_price":  1000
+                 },
+    "vaz_2106":  {
+                     "name_ru":  "ВАЗ-2106",
+                     "name_en":  "VAZ-2106",
+                     "rarity":  "Common",
+                     "image":  "",
+                     "sticker_id":  "",
+                     "sell_price":  1500
+                 },
+    "vaz_2107":  {
+                     "name_ru":  "ВАЗ-2107",
+                     "name_en":  "VAZ-2107",
+                     "rarity":  "Common",
+                     "image":  "",
+                     "sticker_id":  "",
+                     "sell_price":  2000
+                 },
+    "moskvich_412":  {
+                         "name_ru":  "Москвич-412",
+                         "name_en":  "Moskvich-412",
+                         "rarity":  "Common",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  800
+                     },
+    "gaz_24_volga":  {
+                         "name_ru":  "ГАЗ-24 Волга",
+                         "name_en":  "GAZ-24 Volga",
+                         "rarity":  "Common",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  3000
+                     },
+    "mazda_3":  {
+                    "name_ru":  "Мазда 3",
+                    "name_en":  "Mazda 3",
+                    "rarity":  "Common",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  21000
+                },
+    "subaru_impreza":  {
+                           "name_ru":  "Субару Импреза",
+                           "name_en":  "Subaru Impreza",
+                           "rarity":  "Common",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  22000
+                       },
+    "toyota_corolla":  {
+                           "name_ru":  "Тойота Королла",
+                           "name_en":  "Toyota Corolla",
+                           "rarity":  "Common",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  23000
+                       },
+    "nissan_altima":  {
+                          "name_ru":  "Ниссан Альтима",
+                          "name_en":  "Nissan Altima",
+                          "rarity":  "Common",
+                          "image":  "",
+                          "sticker_id":  "",
+                          "sell_price":  26000
+                      },
+    "mitsubishi_lancer":  {
+                              "name_ru":  "Мицубиси Лансер",
+                              "name_en":  "Mitsubishi Lancer",
+                              "rarity":  "Common",
+                              "image":  "",
+                              "sticker_id":  "",
+                              "sell_price":  20000
+                          },
+    "chevrolet_cruze":  {
+                            "name_ru":  "Шевроле Крузе",
+                            "name_en":  "Chevrolet Cruze",
+                            "rarity":  "Common",
+                            "image":  "",
+                            "sticker_id":  "",
+                            "sell_price":  19000
+                        },
+    "bmw_3_series":  {
+                         "name_ru":  "БМВ 3 Серия",
+                         "name_en":  "BMW 3 Series",
+                         "rarity":  "Rare",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  45000
+                     },
+    "mercedes_c_class":  {
+                             "name_ru":  "Мерседес C-Класс",
+                             "name_en":  "Mercedes-Benz C-Class",
+                             "rarity":  "Rare",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  41000
+                         },
+    "audi_a4":  {
+                    "name_ru":  "Ауди A4",
+                    "name_en":  "Audi A4",
+                    "rarity":  "Rare",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  40000
+                },
+    "volkswagen_passat":  {
+                              "name_ru":  "Фольксваген Пассат",
+                              "name_en":  "Volkswagen Passat",
+                              "rarity":  "Rare",
+                              "image":  "",
+                              "sticker_id":  "CAACAgIAAxkDAAICS2mVsAr9tYmH7B3g1yZhVk4laF2mAAIckgACRK-wSF2HqCj0KboEOgQ",
+                              "sell_price":  28000
+                          },
+    "skoda_superb":  {
+                         "name_ru":  "Шкода Суперб",
+                         "name_en":  "Skoda Superb",
+                         "rarity":  "Rare",
+                         "image":  "",
+                         "sticker_id":  "CAACAgIAAxkDAAIChmmVwYGOqa-3l0UoSPyFdzUiDar8AALXkwACRK-wSGSuyrLi0E1DOgQ",
+                         "sell_price":  35000
+                     },
+    "hyundai_sonata":  {
+                           "name_ru":  "Хендай Соната",
+                           "name_en":  "Hyundai Sonata",
+                           "rarity":  "Rare",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  32000
+                       },
+    "kia_optima":  {
+                       "name_ru":  "Киа Оптима",
+                       "name_en":  "Kia Optima",
+                       "rarity":  "Rare",
+                       "image":  "",
+                       "sticker_id":  "",
+                       "sell_price":  30000
+                   },
+    "honda_accord":  {
+                         "name_ru":  "Хонда Аккорд",
+                         "name_en":  "Honda Accord",
+                         "rarity":  "Rare",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  33000
+                     },
+    "toyota_camry_new":  {
+                             "name_ru":  "Тойота Камри (новая)",
+                             "name_en":  "Toyota Camry (new)",
+                             "rarity":  "Rare",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  35000
+                         },
+    "nissan_maxima":  {
+                          "name_ru":  "Ниссан Максима",
+                          "name_en":  "Nissan Maxima",
+                          "rarity":  "Rare",
+                          "image":  "",
+                          "sticker_id":  "",
+                          "sell_price":  37000
+                      },
+    "mazda_6":  {
+                    "name_ru":  "Мазда 6",
+                    "name_en":  "Mazda 6",
+                    "rarity":  "Rare",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  33000
+                },
+    "subaru_legacy":  {
+                          "name_ru":  "Субару Лейси",
+                          "name_en":  "Subaru Legacy",
+                          "rarity":  "Rare",
+                          "image":  "",
+                          "sticker_id":  "",
+                          "sell_price":  32000
+                      },
+    "volvo_s60":  {
+                      "name_ru":  "Вольво S60",
+                      "name_en":  "Volvo S60",
+                      "rarity":  "Rare",
+                      "image":  "",
+                      "sticker_id":  "",
+                      "sell_price":  40000
+                  },
+    "jaguar_xe":  {
+                      "name_ru":  "Ягуар XE",
+                      "name_en":  "Jaguar XE",
+                      "rarity":  "Rare",
+                      "image":  "",
+                      "sticker_id":  "",
+                      "sell_price":  42000
+                  },
+    "infiniti_q50":  {
+                         "name_ru":  "Инфинити Q50",
+                         "name_en":  "Infiniti Q50",
+                         "rarity":  "Rare",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  44000
+                     },
+    "acura_tlx":  {
+                      "name_ru":  "Акура TLX",
+                      "name_en":  "Acura TLX",
+                      "rarity":  "Rare",
+                      "image":  "",
+                      "sticker_id":  "",
+                      "sell_price":  39000
+                  },
+    "lexus_is":  {
+                     "name_ru":  "Лексус IS",
+                     "name_en":  "Lexus IS",
+                     "rarity":  "Rare",
+                     "image":  "",
+                     "sticker_id":  "",
+                     "sell_price":  43000
+                 },
+    "bmw_5_series":  {
+                         "name_ru":  "БМВ 5 Серия",
+                         "name_en":  "BMW 5 Series",
+                         "rarity":  "Rare",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  54000
+                     },
+    "mercedes_e_class":  {
+                             "name_ru":  "Мерседес E-Класс",
+                             "name_en":  "Mercedes-Benz E-Class",
+                             "rarity":  "Rare",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  57000
+                         },
+    "audi_a6":  {
+                    "name_ru":  "Ауди A6",
+                    "name_en":  "Audi A6",
+                    "rarity":  "Rare",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  55000
+                },
+    "porsche_911":  {
+                        "name_ru":  "Порше 911",
+                        "name_en":  "Porsche 911",
+                        "rarity":  "Epic",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  100000
+                    },
+    "lamborghini_huracan":  {
+                                "name_ru":  "Ламборджини Хуракан",
+                                "name_en":  "Lamborghini Huracán",
+                                "rarity":  "Epic",
+                                "image":  "",
+                                "sticker_id":  "",
+                                "sell_price":  240000
+                            },
+    "ferrari_sf90":  {
+                         "name_ru":  "Феррари SF90",
+                         "name_en":  "Ferrari SF90",
+                         "rarity":  "Epic",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  400000
+                     },
+    "mclaren_720s":  {
+                         "name_ru":  "МакЛарен 720S",
+                         "name_en":  "McLaren 720S",
+                         "rarity":  "Epic",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  315000
+                     },
+    "bugatti_divo":  {
+                         "name_ru":  "Бугатти Дивo",
+                         "name_en":  "Bugatti Divo",
+                         "rarity":  "Epic",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  5000000
+                     },
+    "pagani_huayra":  {
+                          "name_ru":  "Паганi Хуайра",
+                          "name_en":  "Pagani Huayra",
+                          "rarity":  "Epic",
+                          "image":  "",
+                          "sticker_id":  "",
+                          "sell_price":  1400000
+                      },
+    "koenigsegg_jesko":  {
+                             "name_ru":  "Кёниггсегг Йеско",
+                             "name_en":  "Koenigsegg Jesko",
+                             "rarity":  "Epic",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  3000000
+                         },
+    "ssc_tuatara":  {
+                        "name_ru":  "SSC Туатара",
+                        "name_en":  "SSC Tuatara",
+                        "rarity":  "Epic",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  1750000
+                    },
+    "hennessey_venom_f5":  {
+                               "name_ru":  "Хеннесси Venom F5",
+                               "name_en":  "Hennessey Venom F5",
+                               "rarity":  "Epic",
+                               "image":  "",
+                               "sticker_id":  "",
+                               "sell_price":  1900000
+                           },
+    "aspark_owl":  {
+                       "name_ru":  "Аспарк Сова",
+                       "name_en":  "Aspark Owl",
+                       "rarity":  "Epic",
+                       "image":  "",
+                       "sticker_id":  "",
+                       "sell_price":  3200000
+                   },
+    "rimac_concept_two":  {
+                              "name_ru":  "Римак Концепт Две",
+                              "name_en":  "Rimac Concept Two",
+                              "rarity":  "Epic",
+                              "image":  "",
+                              "sticker_id":  "",
+                              "sell_price":  2400000
+                          },
+    "lotus_evija":  {
+                        "name_ru":  "Лотус Эвиджа",
+                        "name_en":  "Lotus Evija",
+                        "rarity":  "Epic",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  2300000
+                    },
+    "pininfarina_battista":  {
+                                 "name_ru":  "Пининфарина Баттista",
+                                 "name_en":  "Pininfarina Battista",
+                                 "rarity":  "Epic",
+                                 "image":  "",
+                                 "sticker_id":  "",
+                                 "sell_price":  2200000
+                             },
+    "dodge_viper":  {
+                        "name_ru":  "Додж Вайпер",
+                        "name_en":  "Dodge Viper",
+                        "rarity":  "Epic",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  65000
+                    },
+    "chevrolet_corvette_c8":  {
+                                  "name_ru":  "Шевроле Корвет C8",
+                                  "name_en":  "Chevrolet Corvette C8",
+                                  "rarity":  "Epic",
+                                  "image":  "",
+                                  "sticker_id":  "",
+                                  "sell_price":  60000
+                              },
+    "nissan_gt_r":  {
+                        "name_ru":  "Ниссан GT-R",
+                        "name_en":  "Nissan GT-R",
+                        "rarity":  "Epic",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  115000
+                    },
+    "toyota_supra":  {
+                         "name_ru":  "Тойота Супра",
+                         "name_en":  "Toyota Supra",
+                         "rarity":  "Epic",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  55000
+                     },
+    "subaru_wrx_sti":  {
+                           "name_ru":  "Субару WRX STI",
+                           "name_en":  "Subaru WRX STI",
+                           "rarity":  "Epic",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  42000
+                       },
+    "mitsubishi_lancer_evo":  {
+                                  "name_ru":  "Мицубиси Лансер Эволюшн",
+                                  "name_en":  "Mitsubishi Lancer Evolution",
+                                  "rarity":  "Epic",
+                                  "image":  "",
+                                  "sticker_id":  "",
+                                  "sell_price":  60000
+                              },
+    "honda_nsx":  {
+                      "name_ru":  "Хонда NSX",
+                      "name_en":  "Honda NSX",
+                      "rarity":  "Epic",
+                      "image":  "",
+                      "sticker_id":  "",
+                      "sell_price":  160000
+                  },
+    "bugatti_chiron":  {
+                           "name_ru":  "Бугатти Широн",
+                           "name_en":  "Bugatti Chiron",
+                           "rarity":  "Legendary",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  2600000
+                       },
+    "lamborghini_veneno":  {
+                               "name_ru":  "Ламборджини Венено",
+                               "name_en":  "Lamborghini Veneno",
+                               "rarity":  "Legendary",
+                               "image":  "",
+                               "sticker_id":  "",
+                               "sell_price":  4500000
+                           },
+    "ferrari_la_ferrari":  {
+                               "name_ru":  "Феррари La Ferrari",
+                               "name_en":  "Ferrari La Ferrari",
+                               "rarity":  "Legendary",
+                               "image":  "",
+                               "sticker_id":  "",
+                               "sell_price":  1400000
+                           },
+    "mclaren_f1":  {
+                       "name_ru":  "МакЛарен F1",
+                       "name_en":  "McLaren F1",
+                       "rarity":  "Legendary",
+                       "image":  "",
+                       "sticker_id":  "",
+                       "sell_price":  15000000
+                   },
+    "pagani_zonda":  {
+                         "name_ru":  "Паганi Зонда",
+                         "name_en":  "Pagani Zonda",
+                         "rarity":  "Legendary",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  1200000
+                     },
+    "koenigsegg_one_1":  {
+                             "name_ru":  "Кёниггсегг One:1",
+                             "name_en":  "Koenigsegg One:1",
+                             "rarity":  "Legendary",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  1850000
+                         },
+    "hennessey_venom_gt":  {
+                               "name_ru":  "Хеннесси Venom GT",
+                               "name_en":  "Hennessey Venom GT",
+                               "rarity":  "Legendary",
+                               "image":  "",
+                               "sticker_id":  "",
+                               "sell_price":  1200000
+                           },
+    "koenigsegg_agera_rs":  {
+                                "name_ru":  "Кёниггсегг Агера RS",
+                                "name_en":  "Koenigsegg Agera RS",
+                                "rarity":  "Legendary",
+                                "image":  "",
+                                "sticker_id":  "",
+                                "sell_price":  1600000
+                            },
+    "9ff_gt9":  {
+                    "name_ru":  "9ff GT9",
+                    "name_en":  "9ff GT9",
+                    "rarity":  "Legendary",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  580000
+                },
+    "gumpert_apollo":  {
+                           "name_ru":  "Гумперт Аполо",
+                           "name_en":  "Gumpert Apollo",
+                           "rarity":  "Legendary",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  450000
+                       },
+    "scc_ultimate_aero":  {
+                              "name_ru":  "SSC Ultimate Aero",
+                              "name_en":  "SSC Ultimate Aero",
+                              "rarity":  "Legendary",
+                              "image":  "",
+                              "sticker_id":  "",
+                              "sell_price":  660000
+                          },
+    "zenvo_st1":  {
+                      "name_ru":  "Zenvo ST1",
+                      "name_en":  "Zenvo ST1",
+                      "rarity":  "Legendary",
+                      "image":  "",
+                      "sticker_id":  "",
+                      "sell_price":  1225000
+                  },
+    "lykan_hypersport":  {
+                             "name_ru":  "Ликан Гиперспорт",
+                             "name_en":  "Lykan Hypersport",
+                             "rarity":  "Legendary",
+                             "image":  "",
+                             "sticker_id":  "",
+                             "sell_price":  3400000
+                         },
+    "ferrari_250_gto":  {
+                            "name_ru":  "Феррари 250 GTO",
+                            "name_en":  "Ferrari 250 GTO",
+                            "rarity":  "Legendary",
+                            "image":  "",
+                            "sticker_id":  "",
+                            "sell_price":  35000000
+                        },
+    "bugatti_type_57":  {
+                            "name_ru":  "Бугатти Тип 57",
+                            "name_en":  "Bugatti Type 57",
+                            "rarity":  "Legendary",
+                            "image":  "",
+                            "sticker_id":  "",
+                            "sell_price":  8000000
+                        },
+    "maybach_exelero":  {
+                            "name_ru":  "Майбах Exelero",
+                            "name_en":  "Maybach Exelero",
+                            "rarity":  "Legendary",
+                            "image":  "",
+                            "sticker_id":  "",
+                            "sell_price":  8000000
+                        },
+    "rolls_royce_phantom":  {
+                                "name_ru":  "Роллс-Ройс Фантом",
+                                "name_en":  "Rolls-Royce Phantom",
+                                "rarity":  "Legendary",
+                                "image":  "",
+                                "sticker_id":  "",
+                                "sell_price":  450000
+                            },
+    "bentley_continental":  {
+                                "name_ru":  "Бентли Континенталь",
+                                "name_en":  "Bentley Continental",
+                                "rarity":  "Legendary",
+                                "image":  "",
+                                "sticker_id":  "",
+                                "sell_price":  230000
+                            },
+    "mercedes_amg_gt_r":  {
+                              "name_ru":  "Мерседес-АМГ GT R",
+                              "name_en":  "Mercedes-AMG GT R",
+                              "rarity":  "Legendary",
+                              "image":  "",
+                              "sticker_id":  "",
+                              "sell_price":  165000
+                          },
+    "porsche_918_spyder":  {
+                               "name_ru":  "Порше 918 Спайдер",
+                               "name_en":  "Porsche 918 Spyder",
+                               "rarity":  "Legendary",
+                               "image":  "",
+                               "sticker_id":  "",
+                               "sell_price":  940000
+                           },
+    "mclaren_p1":  {
+                       "name_ru":  "МакЛарен P1",
+                       "name_en":  "McLaren P1",
+                       "rarity":  "Legendary",
+                       "image":  "",
+                       "sticker_id":  "",
+                       "sell_price":  1350000
+                   }
 }

@@ -1029,17 +1029,17 @@ async def buy_cases_menu(call: CallbackQuery):
     cases = {
         "standard": {
             "name": "Стандартный",
-            "price": 500,
+            "price": 18000,
             "desc": "70% Common, 20% Rare, 8% Epic, 2% Leg"
         },
         "premium": {
             "name": "Премиум",
-            "price": 1500,
+            "price": 38000,
             "desc": "70% Rare, 25% Epic, 5% Legendary"
         },
         "luxury": {
             "name": "Люкс",
-            "price": 4000,
+            "price": 1200000,
             "desc": "70% Epic, 30% Legendary"
         }
     }
@@ -1080,17 +1080,17 @@ async def buy_case(call: CallbackQuery):
     cases = {
         "standard": {
             "name": "Стандартный",
-            "price": 500,
+            "price": 18000,
             "rarity_dist": [(0.70, "Common"), (0.90, "Rare"), (0.98, "Epic"), (1.0, "Legendary")]
         },
         "premium": {
             "name": "Премиум",
-            "price": 1500,
+            "price": 38000,
             "rarity_dist": [(0.70, "Rare"), (0.95, "Epic"), (1.0, "Legendary")]
         },
         "luxury": {
             "name": "Люкс",
-            "price": 4000,
+            "price": 1200000,
             "rarity_dist": [(0.70, "Epic"), (1.0, "Legendary")]
         }
     }
