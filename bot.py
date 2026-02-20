@@ -105,7 +105,7 @@ dp = Dispatcher()
 # DATA
 # =========================
 
-with open("cards.json", "r", encoding="utf-8") as f:
+with open("cards.json", "r", encoding="utf-8-sig") as f:
     CARDS = json.load(f)
 
 COMMON_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Common"]
