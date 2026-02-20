@@ -1153,7 +1153,7 @@ async def feedback_cancel(call: CallbackQuery):
     await call.answer()
 
 
-@dp.message(F.chat.type == "private")
+@dp.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def feedback_message(message: Message):
     if is_owner(message.from_user.id) and message.from_user.id in ADMIN_BROADCAST_PENDING:
         text = (message.text or "").strip()
@@ -1388,10 +1388,10 @@ async def profile_menu(call: CallbackQuery):
         f"🚗 <b>Машин в наличии:</b> {total_cars}\n\n"
         f"📈 <b>Заполнение коллекции:</b> {total_cars}/{total_catalog} ({collection_percent:.1f}%)\n\n"
         "<b>По редкостям:</b>\n"
-        f"⚪ Common: {rarity_counts.get('Common', 0)}\n"
-        f"🔵 Rare: {rarity_counts.get('Rare', 0)}\n"
-        f"🟣 Epic: {rarity_counts.get('Epic', 0)}\n"
-        f"🟡 Legendary: {rarity_counts.get('Legendary', 0)}\n\n"
+        f"⚪ Обычная: {rarity_counts.get('Common', 0)}\n"
+        f"🔵 Редкая: {rarity_counts.get('Rare', 0)}\n"
+        f"🟣 Эпическая: {rarity_counts.get('Epic', 0)}\n"
+        f"🟡 Легендарная: {rarity_counts.get('Legendary', 0)}\n\n"
         f"{footer()}"
     )
 
@@ -1706,17 +1706,17 @@ async def buy_cases_menu(call: CallbackQuery):
         "standard": {
             "name": "Стандартный",
             "price": 18000,
-            "desc": "70% Common, 20% Rare, 8% Epic, 2% Leg"
+            "desc": "70% Обычная, 20% Редкая, 8% Эпическая, 2% Легендарная"
         },
         "premium": {
             "name": "Премиум",
             "price": 38000,
-            "desc": "70% Rare, 25% Epic, 5% Legendary"
+            "desc": "70% Редкая, 25% Эпическая, 5% Легендарная"
         },
         "luxury": {
             "name": "Люкс",
             "price": 1200000,
-            "desc": "70% Epic, 30% Legendary"
+            "desc": "70% Эпическая, 30% Легендарная"
         }
     }
 
@@ -2039,10 +2039,10 @@ async def garage(call: CallbackQuery):
         f"{header()}\n\n"
         "🚗 <b>Твой гараж</b>\n\n"
         f"📦 <b>Всего машин:</b> {len(cars)}\n"
-        f"⚪ Common: {rarity_counts['Common']}\n"
-        f"🔵 Rare: {rarity_counts['Rare']}\n"
-        f"🟣 Epic: {rarity_counts['Epic']}\n"
-        f"🟡 Legendary: {rarity_counts['Legendary']}\n\n"
+        f"⚪ Обычная: {rarity_counts['Common']}\n"
+        f"🔵 Редкая: {rarity_counts['Rare']}\n"
+        f"🟣 Эпическая: {rarity_counts['Epic']}\n"
+        f"🟡 Легендарная: {rarity_counts['Legendary']}\n\n"
         f"{footer()}"
     )
 
