@@ -356,6 +356,14 @@ def is_owner(user_id: int) -> bool:
     return user_id == ADMIN_USER_ID
 
 
+def clear_admin_pending_states(user_id: int):
+    ADMIN_BROADCAST_PENDING.pop(user_id, None)
+    ADMIN_PROFILE_LOOKUP_PENDING.discard(user_id)
+    ADMIN_EDIT_LOOKUP_PENDING.discard(user_id)
+    ADMIN_USER_FIND_PENDING.discard(user_id)
+    ADMIN_USER_EDIT_PENDING.pop(user_id, None)
+
+
 def main_menu_kb(user_id: int = None):
     kb = [
         [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")],
@@ -1816,6 +1824,8 @@ async def admin_panel(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
+
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
@@ -1850,6 +1860,8 @@ async def admin_command(message: Message):
             parse_mode="HTML",
         )
         return
+
+    clear_admin_pending_states(message.from_user.id)
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1940,6 +1952,8 @@ async def admin_broadcast_menu(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
+
     await call.message.edit_text(
         f"{header()}\n\n"
         "📣 <b>Массовая рассылка</b>\n\n"
@@ -1969,9 +1983,8 @@ async def admin_user_profile_prompt(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
     ADMIN_PROFILE_LOOKUP_PENDING.add(call.from_user.id)
-    ADMIN_EDIT_LOOKUP_PENDING.discard(call.from_user.id)
-    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -1994,10 +2007,8 @@ async def admin_user_find_prompt(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
     ADMIN_USER_FIND_PENDING.add(call.from_user.id)
-    ADMIN_PROFILE_LOOKUP_PENDING.discard(call.from_user.id)
-    ADMIN_EDIT_LOOKUP_PENDING.discard(call.from_user.id)
-    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -2021,9 +2032,8 @@ async def admin_edit_user_prompt(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
     ADMIN_EDIT_LOOKUP_PENDING.add(call.from_user.id)
-    ADMIN_PROFILE_LOOKUP_PENDING.discard(call.from_user.id)
-    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -2143,6 +2153,7 @@ async def admin_broadcast_target(call: CallbackQuery):
         await call.answer("❌ Неизвестный тип рассылки", show_alert=True)
         return
 
+    clear_admin_pending_states(call.from_user.id)
     ADMIN_BROADCAST_PENDING[call.from_user.id] = target
     target_label = {"private": "ЛС", "groups": "Группы", "all": "ЛС + Группы"}[target]
 
@@ -2170,7 +2181,7 @@ async def admin_broadcast_cancel(call: CallbackQuery):
         await call.answer("⛔ Доступ запрещен", show_alert=True)
         return
 
-    ADMIN_BROADCAST_PENDING.pop(call.from_user.id, None)
+    clear_admin_pending_states(call.from_user.id)
     await call.message.edit_text(
         f"{header()}\n\n"
         "❌ Рассылка отменена\n\n"
