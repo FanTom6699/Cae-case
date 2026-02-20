@@ -568,7 +568,7 @@ async def send_stats(target, from_callback=False):
     text = (
         f"{header()}\n\n"
         "📊 <b>Статистика</b>\n\n"
-        "Выбери что хочешь посмотреть:\n\n"
+        "Выбирай, что хочешь посмотреть:\n\n"
         f"{footer()}"
     )
 
@@ -602,7 +602,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     text = (
         f"{header()}\n\n"
         f"{title}\n\n"
-        f"{chr(10).join(lines) if lines else 'Пусто'}\n\n"
+        f"{chr(10).join(lines) if lines else 'Пока нет данных'}\n\n"
         f"{footer()}"
     )
 
@@ -885,7 +885,7 @@ async def create_sticker_from_photo(message: Message):
             f"<code>{sticker_id}</code>\n\n"
             f"💾 <b>Добавь в cards.json:</b>\n"
             f'<code>"sticker_id": "{sticker_id}"</code>\n\n'
-            f"📝 Нажми на file_id чтобы скопировать\n\n"
+            f"📝 Нажми на file_id, чтобы скопировать\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
@@ -943,7 +943,7 @@ async def start(message: Message):
             f"• Копи монеты и <b>покупай платные кейсы</b>\n"
             f"• Собирай все машины в <b>гараже</b>\n"
             f"• Продавай дубликаты и зарабатывай\n\n"
-            f"Выбери действие ниже и начни играть!\n\n"
+            f"Выбирай действие ниже и начинай играть!\n\n"
             f"{footer()}",
             reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
@@ -953,7 +953,7 @@ async def start(message: Message):
         await message.answer(
             f"{header()}\n\n"
             f"Привет, <b>{message.from_user.first_name}</b>!\n"
-            f"Выбери действие:\n\n"
+            f"Выбирай действие:\n\n"
             f"{footer()}",
             reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
@@ -1012,7 +1012,7 @@ async def help_menu(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             "❓ Помощь доступна только в ЛС\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -1023,12 +1023,12 @@ async def help_menu(call: CallbackQuery):
         "<b>❓ Помощь</b>\n\n"
         "<b>📱 Команды:</b>\n"
         "/start - Главное меню\n"
-        "/stats - Показать топ игроков\n"
-        "/help - Эта справка\n\n"
+        "/stats - Топ игроков\n"
+        "/help - Справка\n\n"
         "<b>🔊 Триггеры в группе:</b>\n"
         "<b>Открыть кейс:</b>\n"
         "  кейс, case, открыть, open\n"
-        "<b>Показать баланс:</b>\n"
+        "<b>Баланс:</b>\n"
         "  баланс, balance, coins\n\n"
         "<b>💡 Совет:</b>\n"
         "Все основные функции доступны через меню ниже 👇\n\n"
@@ -1057,12 +1057,12 @@ async def help_command(message: Message):
         "<b>❓ Помощь</b>\n\n"
         "<b>📱 Команды:</b>\n"
         "/start - Главное меню\n"
-        "/stats - Показать топ игроков\n"
-        "/help - Эта справка\n\n"
+        "/stats - Топ игроков\n"
+        "/help - Справка\n\n"
         "<b>🔊 Триггеры в группе:</b>\n"
         "<b>Открыть кейс:</b>\n"
         "  кейс, case, открыть, open\n"
-        "<b>Показать баланс:</b>\n"
+        "<b>Баланс:</b>\n"
         "  баланс, balance, coins\n\n"
         "<b>💡 Совет:</b>\n"
         "Все основные функции доступны через меню 👇\n\n"
@@ -1093,7 +1093,7 @@ async def feedback_menu(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             "✍️ Отзывы принимаются в ЛС\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -1108,7 +1108,7 @@ async def feedback_menu(call: CallbackQuery):
     await call.message.edit_text(
         f"{header()}\n\n"
         "✍️ <b>Отзыв</b>\n\n"
-        "Выбери категорию:\n\n"
+        "Выбирай категорию:\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
         parse_mode="HTML",
@@ -1360,7 +1360,7 @@ async def feedback_message(message: Message):
 async def profile_menu(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
 
     rarity_counts = get_user_rarity_counts(call.from_user.id)
@@ -1431,7 +1431,7 @@ async def admin_panel(call: CallbackQuery):
         f"{header()}\n\n"
         "🛠 <b>Админ-панель</b>\n\n"
         "Доступ только для разработчика.\n"
-        "Выбери нужный раздел ниже.\n\n"
+        "Выбирай нужный раздел ниже.\n\n"
         f"{footer()}",
         reply_markup=kb,
         parse_mode="HTML",
@@ -1463,7 +1463,7 @@ async def admin_command(message: Message):
         f"{header()}\n\n"
         "🛠 <b>Админ-панель</b>\n\n"
         "Доступ только для разработчика.\n"
-        "Выбери нужный раздел ниже.\n\n"
+        "Выбирай нужный раздел ниже.\n\n"
         f"{footer()}",
         reply_markup=kb,
         parse_mode="HTML",
@@ -1539,7 +1539,7 @@ async def admin_broadcast_menu(call: CallbackQuery):
     await call.message.edit_text(
         f"{header()}\n\n"
         "📣 <b>Массовая рассылка</b>\n\n"
-        "Выбери, куда отправить сообщение:\n"
+        "Выбирай, куда отправить сообщение:\n"
         "• 👤 Только в ЛС\n"
         "• 👥 Только в группы\n"
         "• 🌐 В ЛС и группы\n\n"
@@ -1621,7 +1621,7 @@ async def admin_broadcast_cancel(call: CallbackQuery):
 async def balance(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
     
     await call.message.edit_text(
@@ -1644,7 +1644,7 @@ async def balance(call: CallbackQuery):
 async def daily_tasks_menu(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
 
     day_key = current_day_key()
@@ -1693,7 +1693,7 @@ async def buy_cases_menu(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             "💳 Магазин доступен только в ЛС\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -1701,7 +1701,7 @@ async def buy_cases_menu(call: CallbackQuery):
     
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
     
     # Цены случаев
@@ -1738,7 +1738,7 @@ async def buy_cases_menu(call: CallbackQuery):
     await call.message.edit_text(
         f"{header()}\n\n"
         "<b>💳 Магазин кейсов</b>\n\n"
-        f"💰 <b>У вас:</b> {user['coins']} Coins\n\n"
+        f"💰 <b>У тебя:</b> {user['coins']} Coins\n\n"
         "✅ = можно купить\n"
         "❌ = недостаточно Coins\n\n"
         f"{footer()}",
@@ -1753,7 +1753,7 @@ async def buy_case(call: CallbackQuery):
     case_type = call.data.split(":")[1]
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
 
     cases = {
@@ -1873,7 +1873,7 @@ async def free_case(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             "🎁 Бесплатные кейсы доступны только в ЛС\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -1881,7 +1881,7 @@ async def free_case(call: CallbackQuery):
     
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
     available, remaining = free_case_available(user)
 
@@ -1984,7 +1984,7 @@ async def garage(call: CallbackQuery):
         await call.message.answer(
             f"{header()}\n\n"
             "🚘 Гараж доступен только в ЛС\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a>\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -1993,7 +1993,7 @@ async def garage(call: CallbackQuery):
     page = int(call.data.split(":")[2])
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
     cars = get_user_garage(user["user_id"])
 
@@ -2319,7 +2319,7 @@ async def bot_added_to_group(update: ChatMemberUpdated):
                 f"• <code>баланс</code> - показать баланс\n\n"
                 f"⚙️ <b>Для администрации:</b>\n"
                 f"• <code>/welcome</code> - включить/отключить приветствие новых пользователей\n\n"
-                f"<a href='{bot_link}'>Открыть бота в ЛС</a> чтобы начать игру!\n\n"
+                f"<a href='{bot_link}'>Открыть бота в ЛС</a>, чтобы начать игру!\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
             )
@@ -2340,7 +2340,7 @@ async def group_welcome(message: Message):
             f"{header()}\n\n"
             f"👋 Добро пожаловать, <b>{member.first_name}</b> в <b>{title}</b>!\n\n"
             "Чтобы начать, зарегистрируйся в ЛС бота.\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -2419,7 +2419,7 @@ async def balance_group(message: Message):
         await message.answer(
             f"{header()}\n\n"
             f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
+            f"<a href='{bot_link}'>Открыть бота в ЛС</a>\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
@@ -2456,7 +2456,7 @@ async def group_text_trigger(message: Message):
         await message.answer(
             f"{header()}\n\n"
             f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
-            f"<a href='{bot_link}'>Нажми сюда</a> чтобы открыть бота в ЛС\n\n"
+            f"<a href='{bot_link}'>Открыть бота в ЛС</a>\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
@@ -2602,7 +2602,7 @@ async def balance_command(message: Message):
         await message.answer(
             f"{header()}\n\n"
             f"👤 {message.from_user.first_name}, зарегистрируйся сначала!\n\n"
-            f"<a href='{bot_link}'>Нажми</a>\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
