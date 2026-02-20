@@ -1,4 +1,4 @@
-{
+﻿{
     "toyota_camry":  {
                          "name_ru":  "Тойота Камри",
                          "name_en":  "Toyota Camry",
@@ -329,11 +329,11 @@
                     },
     "lamborghini_huracan":  {
                                 "name_ru":  "Ламборджини Хуракан",
-                                "name_en":  "Lamborghini Huracán",
+                                "name_en":  "Lamborghini HuracГЎn",
                                 "rarity":  "Epic",
                                 "image":  "",
                                 "sticker_id":  "",
-                                "sell_price":  240000
+                                "sell_price":  142000
                             },
     "ferrari_sf90":  {
                          "name_ru":  "Феррари SF90",
@@ -341,7 +341,7 @@
                          "rarity":  "Epic",
                          "image":  "",
                          "sticker_id":  "",
-                         "sell_price":  400000
+                         "sell_price":  146000
                      },
     "mclaren_720s":  {
                          "name_ru":  "МакЛарен 720S",
@@ -349,7 +349,7 @@
                          "rarity":  "Epic",
                          "image":  "",
                          "sticker_id":  "",
-                         "sell_price":  315000
+                         "sell_price":  144000
                      },
     "bugatti_divo":  {
                          "name_ru":  "Бугатти Дивo",
@@ -357,7 +357,7 @@
                          "rarity":  "Epic",
                          "image":  "",
                          "sticker_id":  "",
-                         "sell_price":  5000000
+                         "sell_price":  164000
                      },
     "pagani_huayra":  {
                           "name_ru":  "Паганi Хуайра",
@@ -365,7 +365,7 @@
                           "rarity":  "Epic",
                           "image":  "",
                           "sticker_id":  "",
-                          "sell_price":  1400000
+                          "sell_price":  148000
                       },
     "koenigsegg_jesko":  {
                              "name_ru":  "Кёниггсегг Йеско",
@@ -373,7 +373,7 @@
                              "rarity":  "Epic",
                              "image":  "",
                              "sticker_id":  "",
-                             "sell_price":  3000000
+                             "sell_price":  160000
                          },
     "ssc_tuatara":  {
                         "name_ru":  "SSC Туатара",
@@ -381,7 +381,7 @@
                         "rarity":  "Epic",
                         "image":  "",
                         "sticker_id":  "",
-                        "sell_price":  1750000
+                        "sell_price":  150000
                     },
     "hennessey_venom_f5":  {
                                "name_ru":  "Хеннесси Venom F5",
@@ -389,7 +389,7 @@
                                "rarity":  "Epic",
                                "image":  "",
                                "sticker_id":  "",
-                               "sell_price":  1900000
+                               "sell_price":  152000
                            },
     "aspark_owl":  {
                        "name_ru":  "Аспарк Сова",
@@ -397,7 +397,7 @@
                        "rarity":  "Epic",
                        "image":  "",
                        "sticker_id":  "",
-                       "sell_price":  3200000
+                       "sell_price":  162000
                    },
     "rimac_concept_two":  {
                               "name_ru":  "Римак Концепт Две",
@@ -405,7 +405,7 @@
                               "rarity":  "Epic",
                               "image":  "",
                               "sticker_id":  "",
-                              "sell_price":  2400000
+                              "sell_price":  158000
                           },
     "lotus_evija":  {
                         "name_ru":  "Лотус Эвиджа",
@@ -413,7 +413,7 @@
                         "rarity":  "Epic",
                         "image":  "",
                         "sticker_id":  "",
-                        "sell_price":  2300000
+                        "sell_price":  156000
                     },
     "pininfarina_battista":  {
                                  "name_ru":  "Пининфарина Баттista",
@@ -421,7 +421,7 @@
                                  "rarity":  "Epic",
                                  "image":  "",
                                  "sticker_id":  "",
-                                 "sell_price":  2200000
+                                 "sell_price":  154000
                              },
     "dodge_viper":  {
                         "name_ru":  "Додж Вайпер",

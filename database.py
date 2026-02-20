@@ -48,6 +48,15 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS daily_sell_limits (
+        user_id INTEGER,
+        day_key TEXT,
+        sold_count INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, day_key)
+    )
+    """)
+
     # =========================
     # WEEKLY STATS
     # =========================
@@ -442,6 +451,44 @@ def mark_daily_task_rewarded(user_id, day_key, task_key):
     conn.close()
 
 
+def get_daily_sold_count(user_id, day_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT sold_count
+        FROM daily_sell_limits
+        WHERE user_id = ? AND day_key = ?
+        """,
+        (user_id, day_key)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return int(row[0]) if row else 0
+
+
+def increment_daily_sold_count(user_id, day_key, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO daily_sell_limits (user_id, day_key, sold_count)
+        VALUES (?, ?, 0)
+        """,
+        (user_id, day_key)
+    )
+    cur.execute(
+        """
+        UPDATE daily_sell_limits
+        SET sold_count = sold_count + ?
+        WHERE user_id = ? AND day_key = ?
+        """,
+        (amount, user_id, day_key)
+    )
+    conn.commit()
+    conn.close()
+
+
 def increment_weekly_cases_opened(user_id, week_key, amount=1):
     conn = get_connection()
     cur = conn.cursor()
@@ -828,7 +875,7 @@ def get_car_by_id(car_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT car_name, rarity, user_id
+        SELECT car_name, rarity, user_id, obtained_at
         FROM garage
         WHERE id = ?
         """,
@@ -840,7 +887,7 @@ def get_car_by_id(car_id):
     if not row:
         return None
 
-    return {"name": row[0], "rarity": row[1], "user_id": row[2]}
+    return {"name": row[0], "rarity": row[1], "user_id": row[2], "obtained_at": row[3]}
 
 
 def delete_car_from_garage(car_id):

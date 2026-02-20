@@ -47,6 +47,8 @@ from database import (
     set_group_welcome_enabled,
     ensure_daily_task_row,
     get_daily_tasks_progress,
+    get_daily_sold_count,
+    increment_daily_sold_count,
     add_daily_task_progress,
     mark_daily_task_rewarded,
     set_last_daily_notify_day,
@@ -113,7 +115,9 @@ LEGENDARY_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Legendary"]
 ALL_CARDS = list(CARDS.keys())
 
 FREE_CASE_COOLDOWN = timedelta(hours=4)
-PAID_CASE_COOLDOWN = timedelta(seconds=int(os.getenv("PAID_CASE_COOLDOWN_SECONDS", "45")))
+PAID_CASE_COOLDOWN = timedelta(seconds=int(os.getenv("PAID_CASE_COOLDOWN_SECONDS", "120")))
+FREE_CASE_BONUS_COINS = int(os.getenv("FREE_CASE_BONUS_COINS", "0"))
+DAILY_SELL_LIMIT = int(os.getenv("DAILY_SELL_LIMIT", "5"))
 GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
@@ -161,7 +165,7 @@ SELL_PRICE_BOUNDS = {
 
 DAILY_TASKS = {
     "free_case": {"title": "Открыть бесплатный кейс", "target": 1, "reward": 3000},
-    "buy_standard": {"title": "Купить стандартный кейс", "target": 1, "reward": 5000},
+    "buy_standard": {"title": "Купить платный кейс", "target": 1, "reward": 5000},
     "sell_car": {"title": "Продать машину", "target": 1, "reward": 4000},
     "get_rare_plus": {"title": "Получить машину редкости Редкая и выше", "target": 1, "reward": 7000},
 }
@@ -232,15 +236,32 @@ def draw_weighted_card_by_price(card_ids):
     if not card_ids:
         return None
 
+    # Для небольшого пула делаем равномерный шанс,
+    # чтобы не затягивать добор последних машин.
+    if len(card_ids) <= 8:
+        return random.choice(card_ids)
+
+    prices = []
     weights = []
     for card_id in card_ids:
         card = CARDS.get(card_id, {})
         rarity = card.get("rarity", "Common")
         effective_price = max(1, get_effective_sell_price(card, rarity_override=rarity))
 
-        # Инверсная зависимость: высокая цена -> меньший вес.
-        # Степень > 1 усиливает различия между дорогими и дешевыми моделями.
-        weight = 1.0 / (effective_price ** 1.15)
+        prices.append(effective_price)
+
+    min_price = min(prices)
+    max_price = max(prices)
+
+    for effective_price in prices:
+        if max_price == min_price:
+            weights.append(1.0)
+            continue
+
+        # Мягкий перекос: дорогие машины реже, но не слишком.
+        # Самая дорогая в пуле получает ~70% веса самой дешёвой.
+        normalized = (effective_price - min_price) / (max_price - min_price)
+        weight = 1.0 - (0.30 * normalized)
         weights.append(weight)
 
     return random.choices(card_ids, weights=weights, k=1)[0]
@@ -1763,41 +1784,28 @@ async def buy_cases_menu(call: CallbackQuery):
         await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
     
-    # Цены случаев
-    cases = {
-        "standard": {
-            "name": "Стандартный",
-            "price": 18000,
-            "desc": "70% Обычная, 20% Редкая, 8% Эпическая, 2% Легендарная"
-        },
-        "premium": {
-            "name": "Премиум",
-            "price": 38000,
-            "desc": "70% Редкая, 25% Эпическая, 5% Легендарная"
-        },
-        "luxury": {
-            "name": "Люкс",
-            "price": 1200000,
-            "desc": "70% Эпическая, 30% Легендарная"
-        }
+    paid_case = {
+        "name": "Платный",
+        "price": 38000,
+        "desc": "70% Обычная, 20% Редкая, 8% Эпическая, 2% Легендарная",
     }
 
-    kb = []
-    for case_type, info in cases.items():
-        affordability = "✅" if user["coins"] >= info["price"] else "❌"
-        kb.append([
+    affordability = "✅" if user["coins"] >= paid_case["price"] else "❌"
+    kb = [
+        [
             InlineKeyboardButton(
-                text=f"{affordability} {info['name']} - {info['price']} 💰",
-                callback_data=f"buy_case:{case_type}"
+                text=f"{affordability} {paid_case['name']} - {paid_case['price']} 💰",
+                callback_data="buy_case:paid",
             )
-        ])
-
-    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
+        ],
+        [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
+    ]
 
     await call.message.edit_text(
         f"{header()}\n\n"
         "<b>💳 Магазин кейсов</b>\n\n"
         f"💰 <b>У тебя:</b> {user['coins']} Coins\n\n"
+        f"🎲 <b>{paid_case['name']} кейс:</b> {paid_case['desc']}\n\n"
         "✅ = можно купить\n"
         "❌ = недостаточно Coins\n\n"
         f"{footer()}",
@@ -1815,29 +1823,15 @@ async def buy_case(call: CallbackQuery):
         await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
 
-    cases = {
-        "standard": {
-            "name": "Стандартный",
-            "price": 18000,
-            "rarity_dist": [(0.70, "Common"), (0.90, "Rare"), (0.98, "Epic"), (1.0, "Legendary")]
-        },
-        "premium": {
-            "name": "Премиум",
-            "price": 38000,
-            "rarity_dist": [(0.70, "Rare"), (0.95, "Epic"), (1.0, "Legendary")]
-        },
-        "luxury": {
-            "name": "Люкс",
-            "price": 1200000,
-            "rarity_dist": [(0.70, "Epic"), (1.0, "Legendary")]
-        }
+    case_info = {
+        "name": "Платный",
+        "price": 38000,
+        "rarity_dist": [(0.70, "Common"), (0.90, "Rare"), (0.98, "Epic"), (1.0, "Legendary")],
     }
 
-    if case_type not in cases:
+    if case_type != "paid":
         await call.answer("❌ Неизвестный кейс", show_alert=True)
         return
-
-    case_info = cases[case_type]
 
     can_open_paid, paid_remaining = paid_case_available(user)
     if not can_open_paid:
@@ -1891,8 +1885,7 @@ async def buy_case(call: CallbackQuery):
     add_car_to_garage(call.from_user.id, card_id, rarity)
     increment_total_cases_opened(call.from_user.id)
     increment_weekly_cases_opened(call.from_user.id, current_week_key(), 1)
-    if case_type == "standard":
-        await apply_daily_task_progress(call.from_user.id, "buy_standard", notify_message=call.message)
+    await apply_daily_task_progress(call.from_user.id, "buy_standard", notify_message=call.message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(call.from_user.id, "get_rare_plus", notify_message=call.message)
     logger.info(
@@ -2007,13 +2000,14 @@ async def free_case(call: CallbackQuery):
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=call.message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=call.message)
-    add_coins(user["user_id"], 100)  # Бонус за бесплатный кейс
+    add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=100",
+        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s",
         call.from_user.id,
         card_id,
         rarity,
+        FREE_CASE_BONUS_COINS,
     )
 
     await delete_message_safe(call.message)
@@ -2025,7 +2019,7 @@ async def free_case(call: CallbackQuery):
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
-        f"💰 <b>Бонус:</b> +100 Coins\n\n"
+        f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
         f"{footer()}"
     )
     
@@ -2303,6 +2297,15 @@ async def sell_car(call: CallbackQuery):
         }
     sell_price = get_effective_sell_price(card, rarity_override=car["rarity"])
 
+    day_key = current_day_key()
+    sold_today = get_daily_sold_count(call.from_user.id, day_key)
+    if sold_today >= DAILY_SELL_LIMIT:
+        await call.answer(
+            f"⛔ Лимит продаж на сегодня исчерпан: {DAILY_SELL_LIMIT}",
+            show_alert=True,
+        )
+        return
+
     # Удаляем предыдущий стикер, если был
     if call.from_user.id in LAST_CAR_VIEW_MESSAGE_IDS:
         try:
@@ -2316,6 +2319,7 @@ async def sell_car(call: CallbackQuery):
     # Продаём машину
     delete_car_from_garage(car_id)
     add_coins(call.from_user.id, sell_price)
+    increment_daily_sold_count(call.from_user.id, day_key)
     await apply_daily_task_progress(call.from_user.id, "sell_car", notify_message=call.message)
     logger.info(
         "sell_completed user_id=%s car_id=%s card_name=%s price=%s",
@@ -2330,7 +2334,8 @@ async def sell_car(call: CallbackQuery):
         f"{header()}\n\n"
         f"✅ <b>Машина продана!</b>\n\n"
         f"🚘 {card['name_ru']}\n"
-        f"💰 <b>Получено:</b> +{sell_price} Coins\n\n"
+        f"💰 <b>Получено:</b> +{sell_price} Coins\n"
+        f"📉 <b>Продано сегодня:</b> {sold_today + 1}/{DAILY_SELL_LIMIT}\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -2598,14 +2603,15 @@ async def group_text_trigger(message: Message):
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=message)
-    add_coins(user["user_id"], 100)  # Бонус за бесплатный кейс
+    add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=100",
+        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s",
         message.from_user.id,
         message.chat.id,
         card_id,
         rarity,
+        FREE_CASE_BONUS_COINS,
     )
     sell_price = get_effective_sell_price(card)
 
@@ -2615,7 +2621,7 @@ async def group_text_trigger(message: Message):
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
-        f"💰 <b>Бонус:</b> +100 Coins\n\n"
+        f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
         f"{footer()}"
     )
     
