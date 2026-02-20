@@ -1805,7 +1805,6 @@ async def buy_cases_menu(call: CallbackQuery):
         f"{header()}\n\n"
         "<b>💳 Магазин кейсов</b>\n\n"
         f"💰 <b>У тебя:</b> {user['coins']} Coins\n\n"
-        f"🎲 <b>{paid_case['name']} кейс:</b> {paid_case['desc']}\n\n"
         "✅ = можно купить\n"
         "❌ = недостаточно Coins\n\n"
         f"{footer()}",
