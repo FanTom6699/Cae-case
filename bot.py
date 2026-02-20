@@ -26,10 +26,12 @@ from database import (
     init_db,
     add_user,
     get_user,
+    get_user_rarity_counts,
     update_user_profile,
     set_user_coins,
     add_coins,
     subtract_coins,
+    increment_total_cases_opened,
     add_common_case,
     remove_common_case,
     add_car_to_garage,
@@ -42,6 +44,25 @@ from database import (
     get_top_users_by_collection,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
+    ensure_daily_task_row,
+    get_daily_tasks_progress,
+    add_daily_task_progress,
+    mark_daily_task_rewarded,
+    set_last_daily_notify_day,
+    set_user_streak,
+    increment_weekly_cases_opened,
+    get_top_users_by_weekly_cases,
+    increment_weekly_group_cases_opened,
+    get_top_users_by_group_weekly_cases,
+    has_group_week_rewarded,
+    mark_group_week_rewarded,
+    has_global_week_rewarded,
+    mark_global_week_rewarded,
+    has_user_seen_global_week,
+    mark_user_seen_global_week,
+    get_all_user_ids,
+    get_all_group_chat_ids,
+    get_admin_summary_stats,
 )
 
 # =========================
@@ -55,6 +76,7 @@ BOT_ID = None
 LOG_PATH = os.getenv("LOG_PATH", "bot.log")
 LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "1"))
 FEEDBACK_CHAT_ID = int(os.getenv("FEEDBACK_CHAT_ID", "-1003802493555"))
+ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "5658493362"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,6 +116,7 @@ GARAGE_PAGE_SIZE = 5
 GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "30"))
 GROUP_CASE_RATE_LIMIT = {}
 FEEDBACK_PENDING = {}
+ADMIN_BROADCAST_PENDING = {}
 LAST_CAR_VIEW_MESSAGE_IDS = {}  # user_id -> (sticker_id, main_message_id)
 GARAGE_MESSAGE_ID = {}  # user_id -> message_id сообщения гаража для редактирования
 LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
@@ -119,6 +142,26 @@ RARITY_RU = {
     "Epic": "Эпическая",
     "Legendary": "Легендарная",
 }
+
+DAILY_TASKS = {
+    "free_case": {"title": "Открыть бесплатный кейс", "target": 1, "reward": 3000},
+    "buy_standard": {"title": "Купить стандартный кейс", "target": 1, "reward": 5000},
+    "sell_car": {"title": "Продать машину", "target": 1, "reward": 4000},
+    "get_rare_plus": {"title": "Получить машину редкости Редкая и выше", "target": 1, "reward": 7000},
+}
+
+STREAK_REWARDS = {
+    1: 2000,
+    2: 3000,
+    3: 4000,
+    4: 5000,
+    5: 7000,
+    6: 9000,
+    7: 12000,
+}
+
+GROUP_WEEKLY_REWARDS = [50000, 30000, 20000]
+GLOBAL_WEEKLY_REWARDS = [100000, 70000, 50000]
 
 # =========================
 # RARITY DRAW
@@ -248,18 +291,27 @@ async def edit_message_text(
     except Exception as e:
         logger.error("edit_text failed, message might be too old or deleted: %s", e)
 
-def main_menu_kb():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")],
-            [InlineKeyboardButton(text="💳 Купить кейс", callback_data="menu:buy_cases")],
-            [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
-            [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
-            [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
-            [InlineKeyboardButton(text="💰 Баланс", callback_data="menu:balance")],
-            [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
-        ]
-    )
+def is_owner(user_id: int) -> bool:
+    return user_id == ADMIN_USER_ID
+
+
+def main_menu_kb(user_id: int = None):
+    kb = [
+        [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")],
+        [InlineKeyboardButton(text="💳 Купить кейс", callback_data="menu:buy_cases")],
+        [InlineKeyboardButton(text="📅 Ежедневные задания", callback_data="menu:daily")],
+        [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
+        [InlineKeyboardButton(text="👤 Профиль", callback_data="menu:profile")],
+        [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
+        [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
+        [InlineKeyboardButton(text="💰 Баланс", callback_data="menu:balance")],
+        [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
+    ]
+
+    if user_id is not None and is_owner(user_id):
+        kb.append([InlineKeyboardButton(text="🛠 Админ-панель", callback_data="menu:admin")])
+
+    return InlineKeyboardMarkup(inline_keyboard=kb)
 
 # =========================
 # UTILS
@@ -270,6 +322,209 @@ def format_timedelta(td: timedelta):
     h = total // 3600
     m = (total % 3600) // 60
     return f"{h} ч {m} мин"
+
+
+def current_day_key():
+    return datetime.utcnow().date().isoformat()
+
+
+def current_week_key():
+    iso = datetime.utcnow().isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def previous_week_key():
+    prev = datetime.utcnow() - timedelta(days=7)
+    iso = prev.isocalendar()
+    return f"{iso.year}-W{iso.week:02d}"
+
+
+def get_streak_reward(streak_day: int):
+    return STREAK_REWARDS.get(min(streak_day, 7), STREAK_REWARDS[7])
+
+
+def ensure_daily_tasks_initialized(user_id, day_key):
+    for task_key in DAILY_TASKS:
+        ensure_daily_task_row(user_id, day_key, task_key)
+
+
+async def maybe_notify_daily_available(target: Message, user):
+    day_key = current_day_key()
+    if user.get("last_daily_notify_day") == day_key:
+        return
+
+    ensure_daily_tasks_initialized(user["user_id"], day_key)
+    set_last_daily_notify_day(user["user_id"], day_key)
+
+    await target.answer(
+        f"{header()}\n\n"
+        "📅 <b>Ежедневные задания доступны!</b>\n\n"
+        "Зайди в меню <b>Ежедневные задания</b> и получи награды 💰\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+    )
+
+
+async def maybe_apply_streak_bonus(target: Message, user):
+    today = current_day_key()
+    last_claim_day = user.get("streak_last_claim_day")
+
+    if last_claim_day == today:
+        return
+
+    yesterday = (datetime.utcnow().date() - timedelta(days=1)).isoformat()
+    current_streak = int(user.get("streak_current") or 0)
+    best_streak = int(user.get("streak_best") or 0)
+
+    if last_claim_day == yesterday:
+        current_streak += 1
+    else:
+        current_streak = 1
+
+    best_streak = max(best_streak, current_streak)
+    reward = get_streak_reward(current_streak)
+
+    set_user_streak(user["user_id"], current_streak, best_streak, today)
+    add_coins(user["user_id"], reward)
+
+    await target.answer(
+        f"{header()}\n\n"
+        "🔥 <b>Ежедневный вход!</b>\n\n"
+        f"Серия: <b>{current_streak}</b> дн.\n"
+        f"🎁 Награда: +{reward} Coins\n"
+        f"🏆 Лучший стрик: {best_streak} дн.\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+    )
+
+
+async def process_group_weekly_rewards(chat_id: int):
+    prev_week = previous_week_key()
+    if has_group_week_rewarded(chat_id, prev_week):
+        return
+
+    top = get_top_users_by_group_weekly_cases(chat_id, prev_week, 3)
+    if not top:
+        return
+
+    medals = ["🥇", "🥈", "🥉"]
+    lines = []
+    for i, row in enumerate(top):
+        reward = GROUP_WEEKLY_REWARDS[i]
+        add_coins(row["user_id"], reward)
+        lines.append(
+            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+        )
+
+    mark_group_week_rewarded(chat_id, prev_week)
+    award_time = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
+
+    msg = await bot.send_message(
+        chat_id,
+        f"{header()}\n\n"
+        f"🏁 <b>ИТОГИ НЕДЕЛИ В ГРУППЕ</b>\n<code>{prev_week}</code>\n\n"
+        f"{chr(10).join(lines)}\n\n"
+        f"✅ Награды начислены: <b>{award_time}</b>\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+    )
+    try:
+        await bot.pin_chat_message(chat_id, msg.message_id, disable_notification=True)
+    except Exception:
+        pass
+
+
+async def process_global_weekly_rewards_once():
+    prev_week = previous_week_key()
+    if has_global_week_rewarded(prev_week):
+        return
+
+    top = get_top_users_by_weekly_cases(prev_week, 3)
+    if not top:
+        return
+
+    for i, row in enumerate(top):
+        add_coins(row["user_id"], GLOBAL_WEEKLY_REWARDS[i])
+
+    mark_global_week_rewarded(prev_week)
+
+    medals = ["🥇", "🥈", "🥉"]
+    lines = []
+    for i, row in enumerate(top):
+        reward = GLOBAL_WEEKLY_REWARDS[i]
+        lines.append(
+            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+        )
+
+    text = (
+        f"{header()}\n\n"
+        f"🌍 <b>ИТОГИ ОБЩЕГО ТОПА НЕДЕЛИ</b>\n<code>{prev_week}</code>\n\n"
+        f"{chr(10).join(lines)}\n\n"
+        f"✅ Награды начислены: <b>{datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')}</b>\n\n"
+        f"{footer()}"
+    )
+
+    for uid in get_all_user_ids():
+        if has_user_seen_global_week(uid, prev_week):
+            continue
+        try:
+            await bot.send_message(uid, text, parse_mode="HTML")
+            mark_user_seen_global_week(uid, prev_week)
+        except Exception:
+            continue
+
+
+async def maybe_notify_global_weekly_results(target: Message, user_id: int):
+    prev_week = previous_week_key()
+    if not has_global_week_rewarded(prev_week):
+        return
+    if has_user_seen_global_week(user_id, prev_week):
+        return
+
+    top = get_top_users_by_weekly_cases(prev_week, 3)
+    medals = ["🥇", "🥈", "🥉"]
+    lines = []
+    for i, row in enumerate(top):
+        reward = GLOBAL_WEEKLY_REWARDS[i]
+        lines.append(
+            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+        )
+
+    text = (
+        f"{header()}\n\n"
+        f"🌍 <b>ИТОГИ ОБЩЕГО ТОПА НЕДЕЛИ</b>\n<code>{prev_week}</code>\n\n"
+        f"{chr(10).join(lines) if lines else 'На прошлой неделе победителей не было.'}\n"
+        f"✅ Дата начисления: <b>{datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')}</b>\n\n"
+        f"{footer()}"
+    )
+
+    await target.answer(text, parse_mode="HTML")
+    mark_user_seen_global_week(user_id, prev_week)
+
+
+async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1, notify_message: Message = None):
+    if task_key not in DAILY_TASKS:
+        return
+
+    day_key = current_day_key()
+    ensure_daily_tasks_initialized(user_id, day_key)
+
+    task = DAILY_TASKS[task_key]
+    state = add_daily_task_progress(user_id, day_key, task_key, amount, task["target"])
+
+    if state["just_completed"] and not state["rewarded"]:
+        add_coins(user_id, task["reward"])
+        mark_daily_task_rewarded(user_id, day_key, task_key)
+
+        if notify_message is not None:
+            await notify_message.answer(
+                f"{header()}\n\n"
+                "✅ <b>Задание выполнено!</b>\n\n"
+                f"📌 {task['title']}\n"
+                f"🎁 Награда: +{task['reward']} Coins\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
 
 
 async def is_group_admin(chat_id, user_id):
@@ -302,6 +557,7 @@ async def send_stats(target, from_callback=False):
         inline_keyboard=[
             [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
             [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
+            [InlineKeyboardButton(text="📅 Топ недели", callback_data="stats:week_cases")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
         ]
     )
@@ -324,6 +580,11 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         top = get_top_users_by_coins(10)
         title = "🏆 <b>ТОП ПО МОНЕТАМ</b>"
         line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['coins']} 💰"
+    elif stat_type == "week_cases":
+        week_key = current_week_key()
+        top = get_top_users_by_weekly_cases(week_key, 10)
+        title = f"📅 <b>ТОП НЕДЕЛИ ПО ОТКРЫТИЯМ</b>\n<code>{week_key}</code>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов"
     else:
         top = get_top_users_by_collection(10)
         total_cards = len(CARDS)
@@ -681,7 +942,7 @@ async def start(message: Message):
             f"• Продавай дубликаты и зарабатывай\n\n"
             f"Выбери действие ниже и начни играть!\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
         )
     else:
@@ -691,9 +952,17 @@ async def start(message: Message):
             f"Привет, <b>{message.from_user.first_name}</b>!\n"
             f"Выбери действие:\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
         )
+
+    user_for_daily = get_user(message.from_user.id)
+    if user_for_daily:
+        await process_global_weekly_rewards_once()
+        await maybe_notify_global_weekly_results(message, message.from_user.id)
+        await maybe_apply_streak_bonus(message, user_for_daily)
+        user_for_daily = get_user(message.from_user.id)
+        await maybe_notify_daily_available(message, user_for_daily)
 
 
 @dp.callback_query(F.data == "start")
@@ -717,9 +986,18 @@ async def start_menu(call: CallbackQuery):
         f"{header()}\n\n"
         "Меню\n\n"
         f"{footer()}",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(call.from_user.id),
         parse_mode="HTML",
     )
+
+    user = get_user(call.from_user.id)
+    if user:
+        await process_global_weekly_rewards_once()
+        await maybe_notify_global_weekly_results(call.message, call.from_user.id)
+        await maybe_apply_streak_bonus(call.message, user)
+        user = get_user(call.from_user.id)
+        await maybe_notify_daily_available(call.message, user)
+
     await call.answer()
 
 
@@ -877,6 +1155,62 @@ async def feedback_cancel(call: CallbackQuery):
 
 @dp.message(F.chat.type == "private")
 async def feedback_message(message: Message):
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_BROADCAST_PENDING:
+        text = (message.text or "").strip()
+        if not text:
+            await message.answer(
+                f"{header()}\n\n"
+                "Отправь рассылку текстом одним сообщением.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        target = ADMIN_BROADCAST_PENDING.pop(message.from_user.id)
+        payload = f"📣 Объявление от разработчика\n\n{text}"
+
+        users_ok = users_fail = 0
+        groups_ok = groups_fail = 0
+        pinned_ok = pinned_fail = 0
+
+        if target in {"private", "all"}:
+            for uid in get_all_user_ids():
+                try:
+                    await bot.send_message(uid, payload)
+                    users_ok += 1
+                except Exception:
+                    users_fail += 1
+
+        if target in {"groups", "all"}:
+            for chat_id in get_all_group_chat_ids():
+                try:
+                    sent = await bot.send_message(chat_id, payload)
+                    groups_ok += 1
+                    try:
+                        await bot.pin_chat_message(chat_id, sent.message_id, disable_notification=True)
+                        pinned_ok += 1
+                    except Exception:
+                        pinned_fail += 1
+                except Exception:
+                    groups_fail += 1
+
+        await message.answer(
+            f"{header()}\n\n"
+            "✅ <b>Рассылка завершена</b>\n\n"
+            f"👤 ЛС: {users_ok} успешно, {users_fail} ошибок\n"
+            f"👥 Группы: {groups_ok} успешно, {groups_fail} ошибок\n"
+            f"📌 Закреплено: {pinned_ok} успешно, {pinned_fail} не удалось\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                    [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+                ]
+            ),
+            parse_mode="HTML",
+        )
+        return
+
     if message.from_user.id not in FEEDBACK_PENDING:
         return
 
@@ -1016,6 +1350,267 @@ async def feedback_message(message: Message):
         )
 
 # =========================
+# PROFILE
+# =========================
+
+@dp.callback_query(F.data == "menu:profile")
+async def profile_menu(call: CallbackQuery):
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        return
+
+    rarity_counts = get_user_rarity_counts(call.from_user.id)
+    total_cars = sum(rarity_counts.values())
+    total_catalog = len(CARDS)
+    collection_percent = (total_cars / total_catalog * 100) if total_catalog else 0
+    reg_raw = user.get("created_at")
+    reg_text = "Неизвестно"
+    if reg_raw:
+        try:
+            reg_text = datetime.fromisoformat(reg_raw).strftime("%d.%m.%Y %H:%M")
+        except Exception:
+            reg_text = reg_raw
+
+    username = user.get("username")
+    nick = f"@{username}" if username else "Без ника"
+
+    text = (
+        f"{header()}\n\n"
+        "👤 <b>Профиль</b>\n\n"
+        f"🪪 <b>Ник:</b> {nick}\n"
+        f"🆔 <b>ID:</b> <code>{user['user_id']}</code>\n"
+        f"💰 <b>Баланс:</b> {user['coins']} Coins\n"
+        f"🗓 <b>Первая регистрация:</b> {reg_text}\n"
+        f"🔥 <b>Серия входов:</b> {user.get('streak_current', 0)} дн.\n"
+        f"🏆 <b>Лучший стрик:</b> {user.get('streak_best', 0)} дн.\n"
+        f"🎁 <b>Открыто кейсов:</b> {user.get('total_cases_opened', 0)}\n"
+        f"🚗 <b>Машин в наличии:</b> {total_cars}\n\n"
+        f"📈 <b>Заполнение коллекции:</b> {total_cars}/{total_catalog} ({collection_percent:.1f}%)\n\n"
+        "<b>По редкостям:</b>\n"
+        f"⚪ Common: {rarity_counts.get('Common', 0)}\n"
+        f"🔵 Rare: {rarity_counts.get('Rare', 0)}\n"
+        f"🟣 Epic: {rarity_counts.get('Epic', 0)}\n"
+        f"🟡 Legendary: {rarity_counts.get('Legendary', 0)}\n\n"
+        f"{footer()}"
+    )
+
+    await call.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 Меню", callback_data="start")]]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+# =========================
+# ADMIN PANEL
+# =========================
+
+@dp.callback_query(F.data == "menu:admin")
+async def admin_panel(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
+            [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
+            [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+        ]
+    )
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🛠 <b>Админ-панель</b>\n\n"
+        "Доступ только для разработчика.\n"
+        "Выбери нужный раздел ниже.\n\n"
+        f"{footer()}",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.message(F.chat.type == "private", Command("admin"))
+async def admin_command(message: Message):
+    if not is_owner(message.from_user.id):
+        await message.answer(
+            f"{header()}\n\n"
+            "⛔ Доступ запрещен\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
+            [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
+            [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+        ]
+    )
+
+    await message.answer(
+        f"{header()}\n\n"
+        "🛠 <b>Админ-панель</b>\n\n"
+        "Доступ только для разработчика.\n"
+        "Выбери нужный раздел ниже.\n\n"
+        f"{footer()}",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
+@dp.callback_query(F.data == "admin:stats")
+async def admin_stats(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    stats = get_admin_summary_stats()
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📈 <b>Статистика бота</b>\n\n"
+        f"👥 Пользователей: <b>{stats['users_count']}</b>\n"
+        f"🚗 Машин в гаражах: <b>{stats['garage_count']}</b>\n"
+        f"📅 Записей дневок: <b>{stats['daily_rows']}</b>\n"
+        f"🏁 Записей недельки: <b>{stats['weekly_rows']}</b>\n"
+        f"🆔 Admin ID: <code>{ADMIN_USER_ID}</code>\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:week")
+async def admin_week_status(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    current = current_week_key()
+    previous = previous_week_key()
+    global_top = get_top_users_by_weekly_cases(current, 5)
+
+    lines = []
+    for i, row in enumerate(global_top, start=1):
+        lines.append(f"{i}. <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов")
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📅 <b>Статус недели</b>\n\n"
+        f"Текущая: <code>{current}</code>\n"
+        f"Прошлая: <code>{previous}</code>\n\n"
+        f"<b>Топ текущей недели (глобально):</b>\n"
+        f"{chr(10).join(lines) if lines else 'Пока нет открытий.'}\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:broadcast")
+async def admin_broadcast_menu(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📣 <b>Массовая рассылка</b>\n\n"
+        "Выбери, куда отправить сообщение:\n"
+        "• 👤 Только в ЛС\n"
+        "• 👥 Только в группы\n"
+        "• 🌐 В ЛС и группы\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="👤 ЛС", callback_data="admin:broadcast_target:private"),
+                    InlineKeyboardButton(text="👥 Группы", callback_data="admin:broadcast_target:groups"),
+                ],
+                [InlineKeyboardButton(text="🌐 ЛС + Группы", callback_data="admin:broadcast_target:all")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:broadcast_target:"))
+async def admin_broadcast_target(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    target = call.data.split(":", 2)[2]
+    if target not in {"private", "groups", "all"}:
+        await call.answer("❌ Неизвестный тип рассылки", show_alert=True)
+        return
+
+    ADMIN_BROADCAST_PENDING[call.from_user.id] = target
+    target_label = {"private": "ЛС", "groups": "Группы", "all": "ЛС + Группы"}[target]
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📝 <b>Введи текст рассылки</b>\n\n"
+        f"Канал: <b>{target_label}</b>\n"
+        "Отправь одним текстовым сообщением в этот чат.\n"
+        "Если передумал — нажми отмену.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="admin:broadcast_cancel")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:broadcast_cancel")
+async def admin_broadcast_cancel(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    ADMIN_BROADCAST_PENDING.pop(call.from_user.id, None)
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "❌ Рассылка отменена\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+# =========================
 # BALANCE
 # =========================
 
@@ -1030,6 +1625,52 @@ async def balance(call: CallbackQuery):
         f"{header()}\n\n"
         f"💰 <b>Coins:</b> {user['coins']}\n\n"
         f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 Меню", callback_data="start")]]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+# =========================
+# DAILY TASKS
+# =========================
+
+@dp.callback_query(F.data == "menu:daily")
+async def daily_tasks_menu(call: CallbackQuery):
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("❌ Пользователь не найден, используй /start", show_alert=True)
+        return
+
+    day_key = current_day_key()
+    ensure_daily_tasks_initialized(user["user_id"], day_key)
+    progress = get_daily_tasks_progress(user["user_id"], day_key)
+
+    lines = []
+    done_count = 0
+    for task_key, task in DAILY_TASKS.items():
+        state = progress.get(task_key, {"progress": 0, "completed": False})
+        cur = state.get("progress", 0)
+        target = task["target"]
+        completed = state.get("completed", False)
+        status = "✅ Выполнено" if completed else f"⏳ {cur}/{target}"
+        if completed:
+            done_count += 1
+        lines.append(f"• <b>{task['title']}</b> — {status} (+{task['reward']} 💰)")
+
+    text = (
+        f"{header()}\n\n"
+        "📅 <b>Ежедневные задания</b>\n\n"
+        f"Прогресс: <b>{done_count}/{len(DAILY_TASKS)}</b>\n"
+        f"День: <code>{day_key}</code> (UTC)\n\n"
+        f"{chr(10).join(lines)}\n\n"
+        f"{footer()}"
+    )
+
+    await call.message.edit_text(
+        text,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="🔙 Меню", callback_data="start")]]
         ),
@@ -1176,6 +1817,12 @@ async def buy_case(call: CallbackQuery):
     
     # Добавляем машину в гараж
     add_car_to_garage(call.from_user.id, card_id, rarity)
+    increment_total_cases_opened(call.from_user.id)
+    increment_weekly_cases_opened(call.from_user.id, current_week_key(), 1)
+    if case_type == "standard":
+        await apply_daily_task_progress(call.from_user.id, "buy_standard", notify_message=call.message)
+    if rarity in ("Rare", "Epic", "Legendary"):
+        await apply_daily_task_progress(call.from_user.id, "get_rare_plus", notify_message=call.message)
     logger.info(
         "buy_case_opened user_id=%s case=%s card_id=%s rarity=%s price=%s",
         call.from_user.id,
@@ -1281,6 +1928,11 @@ async def free_case(call: CallbackQuery):
     rarity = card["rarity"]
 
     add_car_to_garage(user["user_id"], card_id, rarity)
+    increment_total_cases_opened(user["user_id"])
+    increment_weekly_cases_opened(user["user_id"], current_week_key(), 1)
+    await apply_daily_task_progress(user["user_id"], "free_case", notify_message=call.message)
+    if rarity in ("Rare", "Epic", "Legendary"):
+        await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=call.message)
     add_coins(user["user_id"], 100)  # Бонус за бесплатный кейс
     update_last_free_case_time(user["user_id"])
     logger.info(
@@ -1378,6 +2030,22 @@ async def garage(call: CallbackQuery):
     end = start + GARAGE_PAGE_SIZE
     chunk = cars[start:end]
 
+    rarity_counts = {"Common": 0, "Rare": 0, "Epic": 0, "Legendary": 0}
+    for car in cars:
+        if car["rarity"] in rarity_counts:
+            rarity_counts[car["rarity"]] += 1
+
+    garage_text = (
+        f"{header()}\n\n"
+        "🚗 <b>Твой гараж</b>\n\n"
+        f"📦 <b>Всего машин:</b> {len(cars)}\n"
+        f"⚪ Common: {rarity_counts['Common']}\n"
+        f"🔵 Rare: {rarity_counts['Rare']}\n"
+        f"🟣 Epic: {rarity_counts['Epic']}\n"
+        f"🟡 Legendary: {rarity_counts['Legendary']}\n\n"
+        f"{footer()}"
+    )
+
     kb = []
     for car in chunk:
         card = CARDS.get(car["name"])
@@ -1404,7 +2072,7 @@ async def garage(call: CallbackQuery):
     if call.from_user.id in GARAGE_MESSAGE_ID:
         try:
             await bot.edit_message_text(
-                f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+                garage_text,
                 chat_id=call.message.chat.id,
                 message_id=GARAGE_MESSAGE_ID[call.from_user.id],
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
@@ -1413,14 +2081,14 @@ async def garage(call: CallbackQuery):
         except Exception:
             # Fallback если сообщение не существует
             await call.message.edit_text(
-                f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+                garage_text,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
                 parse_mode="HTML",
             )
             GARAGE_MESSAGE_ID[call.from_user.id] = call.message.message_id
     else:
         await call.message.edit_text(
-            f"{header()}\n\n🚗 <b>Твой гараж</b>\n\n{footer()}",
+            garage_text,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
             parse_mode="HTML",
         )
@@ -1572,6 +2240,7 @@ async def sell_car(call: CallbackQuery):
     # Продаём машину
     delete_car_from_garage(car_id)
     add_coins(call.from_user.id, sell_price)
+    await apply_daily_task_progress(call.from_user.id, "sell_car", notify_message=call.message)
     logger.info(
         "sell_completed user_id=%s car_id=%s card_name=%s price=%s",
         call.from_user.id,
@@ -1847,6 +2516,12 @@ async def group_text_trigger(message: Message):
     rarity = card["rarity"]
 
     add_car_to_garage(user["user_id"], card_id, rarity)
+    increment_total_cases_opened(user["user_id"])
+    increment_weekly_cases_opened(user["user_id"], current_week_key(), 1)
+    increment_weekly_group_cases_opened(message.chat.id, user["user_id"], current_week_key(), 1)
+    await apply_daily_task_progress(user["user_id"], "free_case", notify_message=message)
+    if rarity in ("Rare", "Epic", "Legendary"):
+        await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=message)
     add_coins(user["user_id"], 100)  # Бонус за бесплатный кейс
     update_last_free_case_time(user["user_id"])
     logger.info(
@@ -1886,6 +2561,24 @@ async def top_command(message: Message):
         text += "Пока нет участников с профилем в боте.\n"
     text += f"\n{footer()}"
     
+    await message.answer(text, parse_mode="HTML")
+
+
+@dp.message(F.chat.type != "private", Command("topweek"))
+async def top_week_command(message: Message):
+    await process_group_weekly_rewards(message.chat.id)
+
+    week_key = current_week_key()
+    top = get_top_users_by_group_weekly_cases(message.chat.id, week_key, 10)
+
+    text = f"{header()}\n\n📅 <b>ТОП НЕДЕЛИ В ЭТОЙ ГРУППЕ</b>\n<code>{week_key}</code>\n\n"
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    for i, row in enumerate(top, start=1):
+        text += f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов\n"
+    if not top:
+        text += "Пока нет открытий кейсов на этой неделе.\n"
+    text += f"\n{footer()}"
+
     await message.answer(text, parse_mode="HTML")
 
 # =========================

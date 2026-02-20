@@ -23,7 +23,74 @@ def init_db():
         coins INTEGER DEFAULT 0,
         last_case_time TEXT,
         last_free_case_time TEXT,
-        cases_common INTEGER DEFAULT 0
+        cases_common INTEGER DEFAULT 0,
+        created_at TEXT,
+        total_cases_opened INTEGER DEFAULT 0,
+        last_daily_notify_day TEXT,
+        streak_current INTEGER DEFAULT 0,
+        streak_best INTEGER DEFAULT 0,
+        streak_last_claim_day TEXT
+    )
+    """)
+
+    # =========================
+    # DAILY TASKS
+    # =========================
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS daily_tasks_progress (
+        user_id INTEGER,
+        day_key TEXT,
+        task_key TEXT,
+        progress INTEGER DEFAULT 0,
+        completed INTEGER DEFAULT 0,
+        rewarded INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, day_key, task_key)
+    )
+    """)
+
+    # =========================
+    # WEEKLY STATS
+    # =========================
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_case_stats (
+        user_id INTEGER,
+        week_key TEXT,
+        cases_opened INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, week_key)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_group_case_stats (
+        chat_id INTEGER,
+        user_id INTEGER,
+        week_key TEXT,
+        cases_opened INTEGER DEFAULT 0,
+        PRIMARY KEY (chat_id, user_id, week_key)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_group_rewards_log (
+        chat_id INTEGER,
+        week_key TEXT,
+        awarded_at TEXT,
+        PRIMARY KEY (chat_id, week_key)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_global_rewards_log (
+        week_key TEXT PRIMARY KEY,
+        awarded_at TEXT
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_global_seen (
+        user_id INTEGER,
+        week_key TEXT,
+        PRIMARY KEY (user_id, week_key)
     )
     """)
 
@@ -76,6 +143,55 @@ def init_db():
             "ALTER TABLE users ADD COLUMN first_name TEXT"
         )
 
+    if "created_at" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN created_at TEXT"
+        )
+
+    if "total_cases_opened" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN total_cases_opened INTEGER DEFAULT 0"
+        )
+
+    if "last_daily_notify_day" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN last_daily_notify_day TEXT"
+        )
+
+    if "streak_current" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN streak_current INTEGER DEFAULT 0"
+        )
+
+    if "streak_best" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN streak_best INTEGER DEFAULT 0"
+        )
+
+    if "streak_last_claim_day" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN streak_last_claim_day TEXT"
+        )
+
+    cur.execute(
+        "UPDATE users SET created_at = COALESCE(created_at, ?) WHERE created_at IS NULL OR created_at = ''",
+        (datetime.utcnow().isoformat(),)
+    )
+
+    # Мягкий бэкфилл: для старых пользователей, у кого счётчик ещё 0,
+    # проставляем минимум по текущему размеру гаража.
+    cur.execute(
+        """
+        UPDATE users
+        SET total_cases_opened = (
+            SELECT COUNT(*)
+            FROM garage g
+            WHERE g.user_id = users.user_id
+        )
+        WHERE COALESCE(total_cases_opened, 0) = 0
+        """
+    )
+
     conn.commit()
     conn.close()
 
@@ -115,10 +231,10 @@ def add_user(user_id, username=None, first_name=None):
     cur.execute(
         """
         INSERT OR IGNORE INTO users 
-        (user_id, username, first_name, coins, cases_common, last_free_case_time)
-        VALUES (?, ?, ?, ?, ?, ?)
+        (user_id, username, first_name, coins, cases_common, last_free_case_time, created_at, total_cases_opened, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user_id, username, first_name, 0, 1, None)  # 1 стартовый кейс
+        (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, None, 0, 0, None)  # 1 стартовый кейс
     )
     conn.commit()
     conn.close()
@@ -140,7 +256,7 @@ def get_user(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time
+        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day
         FROM users WHERE user_id = ?
         """,
         (user_id,)
@@ -158,8 +274,386 @@ def get_user(user_id):
         "coins": row[3],
         "last_case_time": row[4],
         "cases_common": row[5],
-        "last_free_case_time": row[6]
+        "last_free_case_time": row[6],
+        "created_at": row[7],
+        "total_cases_opened": row[8],
+        "last_daily_notify_day": row[9],
+        "streak_current": row[10],
+        "streak_best": row[11],
+        "streak_last_claim_day": row[12],
     }
+
+
+def set_user_streak(user_id, current, best, last_claim_day):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE users
+        SET streak_current = ?, streak_best = ?, streak_last_claim_day = ?
+        WHERE user_id = ?
+        """,
+        (current, best, last_claim_day, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def set_last_daily_notify_day(user_id, day_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET last_daily_notify_day = ? WHERE user_id = ?",
+        (day_key, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def increment_total_cases_opened(user_id, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET total_cases_opened = COALESCE(total_cases_opened, 0) + ? WHERE user_id = ?",
+        (amount, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_rarity_counts(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT rarity, COUNT(*)
+        FROM garage
+        WHERE user_id = ?
+        GROUP BY rarity
+        """,
+        (user_id,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    result = {"Common": 0, "Rare": 0, "Epic": 0, "Legendary": 0}
+    for rarity, count in rows:
+        result[rarity] = count
+    return result
+
+
+def ensure_daily_task_row(user_id, day_key, task_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO daily_tasks_progress (user_id, day_key, task_key, progress, completed, rewarded)
+        VALUES (?, ?, ?, 0, 0, 0)
+        """,
+        (user_id, day_key, task_key)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_daily_tasks_progress(user_id, day_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT task_key, progress, completed, rewarded
+        FROM daily_tasks_progress
+        WHERE user_id = ? AND day_key = ?
+        """,
+        (user_id, day_key)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return {
+        r[0]: {
+            "progress": r[1],
+            "completed": bool(r[2]),
+            "rewarded": bool(r[3]),
+        }
+        for r in rows
+    }
+
+
+def add_daily_task_progress(user_id, day_key, task_key, amount, target):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO daily_tasks_progress (user_id, day_key, task_key, progress, completed, rewarded)
+        VALUES (?, ?, ?, 0, 0, 0)
+        """,
+        (user_id, day_key, task_key)
+    )
+
+    cur.execute(
+        """
+        SELECT progress, completed, rewarded
+        FROM daily_tasks_progress
+        WHERE user_id = ? AND day_key = ? AND task_key = ?
+        """,
+        (user_id, day_key, task_key)
+    )
+    row = cur.fetchone()
+    prev_progress = row[0] if row else 0
+    prev_completed = bool(row[1]) if row else False
+    prev_rewarded = bool(row[2]) if row else False
+
+    new_progress = min(prev_progress + amount, target)
+    now_completed = new_progress >= target
+
+    cur.execute(
+        """
+        UPDATE daily_tasks_progress
+        SET progress = ?, completed = ?
+        WHERE user_id = ? AND day_key = ? AND task_key = ?
+        """,
+        (new_progress, 1 if now_completed else 0, user_id, day_key, task_key)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "progress": new_progress,
+        "completed": now_completed,
+        "just_completed": (not prev_completed and now_completed),
+        "rewarded": prev_rewarded,
+    }
+
+
+def mark_daily_task_rewarded(user_id, day_key, task_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE daily_tasks_progress
+        SET rewarded = 1
+        WHERE user_id = ? AND day_key = ? AND task_key = ?
+        """,
+        (user_id, day_key, task_key)
+    )
+    conn.commit()
+    conn.close()
+
+
+def increment_weekly_cases_opened(user_id, week_key, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO weekly_case_stats (user_id, week_key, cases_opened)
+        VALUES (?, ?, 0)
+        """,
+        (user_id, week_key)
+    )
+    cur.execute(
+        """
+        UPDATE weekly_case_stats
+        SET cases_opened = cases_opened + ?
+        WHERE user_id = ? AND week_key = ?
+        """,
+        (amount, user_id, week_key)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_top_users_by_weekly_cases(week_key, limit=10):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT u.user_id, u.username, u.first_name, w.cases_opened
+        FROM weekly_case_stats w
+        JOIN users u ON u.user_id = w.user_id
+        WHERE w.week_key = ?
+        ORDER BY w.cases_opened DESC, u.user_id ASC
+        LIMIT ?
+        """,
+        (week_key, limit)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "cases_opened": r[3]}
+        for r in rows
+    ]
+
+
+def increment_weekly_group_cases_opened(chat_id, user_id, week_key, amount=1):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO weekly_group_case_stats (chat_id, user_id, week_key, cases_opened)
+        VALUES (?, ?, ?, 0)
+        """,
+        (chat_id, user_id, week_key)
+    )
+    cur.execute(
+        """
+        UPDATE weekly_group_case_stats
+        SET cases_opened = cases_opened + ?
+        WHERE chat_id = ? AND user_id = ? AND week_key = ?
+        """,
+        (amount, chat_id, user_id, week_key)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_top_users_by_group_weekly_cases(chat_id, week_key, limit=10):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT u.user_id, u.username, u.first_name, w.cases_opened
+        FROM weekly_group_case_stats w
+        JOIN users u ON u.user_id = w.user_id
+        WHERE w.chat_id = ? AND w.week_key = ?
+        ORDER BY w.cases_opened DESC, u.user_id ASC
+        LIMIT ?
+        """,
+        (chat_id, week_key, limit)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "cases_opened": r[3]}
+        for r in rows
+    ]
+
+
+def get_all_user_ids():
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM users")
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows]
+
+
+def get_all_group_chat_ids():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT chat_id FROM group_settings")
+    from_settings = [r[0] for r in cur.fetchall()]
+
+    cur.execute("SELECT DISTINCT chat_id FROM weekly_group_case_stats")
+    from_weekly = [r[0] for r in cur.fetchall()]
+
+    conn.close()
+    return list(set(from_settings + from_weekly))
+
+
+def get_admin_summary_stats():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM users")
+    users_count = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM garage")
+    garage_count = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM daily_tasks_progress")
+    daily_rows = cur.fetchone()[0]
+
+    cur.execute("SELECT COUNT(*) FROM weekly_case_stats")
+    weekly_rows = cur.fetchone()[0]
+
+    conn.close()
+
+    return {
+        "users_count": users_count,
+        "garage_count": garage_count,
+        "daily_rows": daily_rows,
+        "weekly_rows": weekly_rows,
+    }
+
+
+def has_group_week_rewarded(chat_id, week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM weekly_group_rewards_log WHERE chat_id = ? AND week_key = ?",
+        (chat_id, week_key)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_group_week_rewarded(chat_id, week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO weekly_group_rewards_log (chat_id, week_key, awarded_at)
+        VALUES (?, ?, ?)
+        """,
+        (chat_id, week_key, datetime.utcnow().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def has_global_week_rewarded(week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM weekly_global_rewards_log WHERE week_key = ?",
+        (week_key,)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_global_week_rewarded(week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO weekly_global_rewards_log (week_key, awarded_at)
+        VALUES (?, ?)
+        """,
+        (week_key, datetime.utcnow().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def has_user_seen_global_week(user_id, week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT 1 FROM weekly_global_seen WHERE user_id = ? AND week_key = ?",
+        (user_id, week_key)
+    )
+    row = cur.fetchone()
+    conn.close()
+    return row is not None
+
+
+def mark_user_seen_global_week(user_id, week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT OR IGNORE INTO weekly_global_seen (user_id, week_key) VALUES (?, ?)",
+        (user_id, week_key)
+    )
+    conn.commit()
+    conn.close()
 
 
 def get_top_users_by_coins(limit=10):
