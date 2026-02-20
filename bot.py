@@ -123,6 +123,9 @@ GROUP_CASE_RATE_LIMIT_SECONDS = int(os.getenv("GROUP_CASE_RATE_LIMIT_SECONDS", "
 GROUP_CASE_RATE_LIMIT = {}
 FEEDBACK_PENDING = {}
 ADMIN_BROADCAST_PENDING = {}
+ADMIN_PROFILE_LOOKUP_PENDING = set()
+ADMIN_EDIT_LOOKUP_PENDING = set()
+ADMIN_USER_EDIT_PENDING = {}
 LAST_CAR_VIEW_MESSAGE_IDS = {}  # user_id -> (sticker_id, main_message_id)
 GARAGE_MESSAGE_ID = {}  # user_id -> message_id сообщения гаража для редактирования
 LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
@@ -1238,6 +1241,265 @@ async def feedback_cancel(call: CallbackQuery):
 
 @dp.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def feedback_message(message: Message):
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_PROFILE_LOOKUP_PENDING:
+        text = (message.text or "").strip()
+        if not text.isdigit():
+            await message.answer(
+                f"{header()}\n\n"
+                "Введи корректный ID игрока (только число).\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        target_user_id = int(text)
+        target_user = get_user(target_user_id)
+        if not target_user:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Игрок не найден\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        ADMIN_PROFILE_LOOKUP_PENDING.discard(message.from_user.id)
+
+        rarity_counts = get_user_rarity_counts(target_user_id)
+        total_cars = sum(rarity_counts.values())
+        username = target_user.get("username")
+        nick = f"@{username}" if username else "Без ника"
+
+        await message.answer(
+            f"{header()}\n\n"
+            "👤 <b>Профиль игрока</b>\n\n"
+            f"🪪 <b>Ник:</b> {nick}\n"
+            f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
+            f"💰 <b>Баланс:</b> {target_user['coins']} Coins\n"
+            f"🎁 <b>Открыто кейсов:</b> {target_user.get('total_cases_opened', 0)}\n"
+            f"🚗 <b>Машин:</b> {total_cars}\n\n"
+            "<b>По редкостям:</b>\n"
+            f"⚪ Обычная: {rarity_counts.get('Common', 0)}\n"
+            f"🔵 Редкая: {rarity_counts.get('Rare', 0)}\n"
+            f"🟣 Эпическая: {rarity_counts.get('Epic', 0)}\n"
+            f"🟡 Легендарная: {rarity_counts.get('Legendary', 0)}\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="✏️ Редактировать этого игрока", callback_data=f"admin:edit_user_id:{target_user_id}")],
+                    [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                ]
+            ),
+            parse_mode="HTML",
+        )
+        return
+
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_EDIT_LOOKUP_PENDING:
+        text = (message.text or "").strip()
+        if not text.isdigit():
+            await message.answer(
+                f"{header()}\n\n"
+                "Введи корректный ID игрока (только число).\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        target_user_id = int(text)
+        target_user = get_user(target_user_id)
+        if not target_user:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Игрок не найден\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        ADMIN_EDIT_LOOKUP_PENDING.discard(message.from_user.id)
+
+        await message.answer(
+            f"{header()}\n\n"
+            "🛠 <b>Редактирование игрока</b>\n\n"
+            f"ID: <code>{target_user_id}</code>\n"
+            f"Баланс: <b>{target_user['coins']}</b> Coins\n\n"
+            "Выбери действие:\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(text="➕ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_add"),
+                        InlineKeyboardButton(text="➖ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_sub"),
+                    ],
+                    [InlineKeyboardButton(text="💰 Установить баланс", callback_data=f"admin:edit_set:{target_user_id}:coins_set")],
+                    [InlineKeyboardButton(text="🚗 Выдать машину", callback_data=f"admin:edit_set:{target_user_id}:car_add")],
+                    [InlineKeyboardButton(text="🗑 Забрать машину", callback_data=f"admin:edit_set:{target_user_id}:car_remove")],
+                    [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                ]
+            ),
+            parse_mode="HTML",
+        )
+        return
+
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_USER_EDIT_PENDING:
+        payload = ADMIN_USER_EDIT_PENDING[message.from_user.id]
+        target_user_id = payload["target_user_id"]
+        action = payload["action"]
+        text = (message.text or "").strip()
+
+        target_user = get_user(target_user_id)
+        if not target_user:
+            ADMIN_USER_EDIT_PENDING.pop(message.from_user.id, None)
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Игрок не найден\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        try:
+            if action == "coins_add":
+                amount = int(text)
+                if amount <= 0:
+                    raise ValueError()
+                add_coins(target_user_id, amount)
+                new_user = get_user(target_user_id)
+                await message.answer(
+                    f"{header()}\n\n✅ Баланс увеличен на {amount} Coins\nНовый баланс: <b>{new_user['coins']}</b> Coins\n\n{footer()}",
+                    parse_mode="HTML",
+                )
+                try:
+                    await bot.send_message(
+                        target_user_id,
+                        f"{header()}\n\n💰 Администратор начислил тебе <b>+{amount}</b> Coins.\nТекущий баланс: <b>{new_user['coins']}</b> Coins\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+            elif action == "coins_sub":
+                amount = int(text)
+                if amount <= 0:
+                    raise ValueError()
+                current = max(0, int(target_user.get("coins", 0)))
+                new_balance = max(0, current - amount)
+                set_user_coins(target_user_id, new_balance)
+                await message.answer(
+                    f"{header()}\n\n✅ Баланс уменьшен на {amount} Coins\nНовый баланс: <b>{new_balance}</b> Coins\n\n{footer()}",
+                    parse_mode="HTML",
+                )
+                try:
+                    await bot.send_message(
+                        target_user_id,
+                        f"{header()}\n\n💸 Администратор списал у тебя <b>{amount}</b> Coins.\nТекущий баланс: <b>{new_balance}</b> Coins\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+            elif action == "coins_set":
+                amount = int(text)
+                if amount < 0:
+                    raise ValueError()
+                set_user_coins(target_user_id, amount)
+                await message.answer(
+                    f"{header()}\n\n✅ Баланс установлен: <b>{amount}</b> Coins\n\n{footer()}",
+                    parse_mode="HTML",
+                )
+                try:
+                    await bot.send_message(
+                        target_user_id,
+                        f"{header()}\n\n💰 Администратор установил твой баланс: <b>{amount}</b> Coins\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+            elif action == "car_add":
+                car_key = text.lower()
+                card = CARDS.get(car_key)
+                if not card:
+                    await message.answer(
+                        f"{header()}\n\n❌ Машина не найдена в каталоге.\nВведи корректный ключ из cards.json\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                    return
+                add_car_to_garage(target_user_id, car_key, card.get("rarity", "Common"))
+                await message.answer(
+                    f"{header()}\n\n✅ Машина выдана: <b>{card.get('name_ru', car_key)}</b>\n\n{footer()}",
+                    parse_mode="HTML",
+                )
+                try:
+                    await bot.send_message(
+                        target_user_id,
+                        f"{header()}\n\n🚘 Администратор выдал тебе машину: <b>{card.get('name_ru', car_key)}</b>\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+            elif action == "car_remove":
+                car_key = text.lower()
+                garage = get_user_garage(target_user_id)
+                target_row = next((row for row in garage if row.get("name") == car_key), None)
+                if not target_row:
+                    await message.answer(
+                        f"{header()}\n\n❌ У игрока нет этой машины в гараже\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                    return
+                delete_car_from_garage(target_row["id"])
+                card = CARDS.get(car_key, {})
+                car_name = card.get("name_ru", car_key)
+                await message.answer(
+                    f"{header()}\n\n✅ Машина удалена: <b>{car_name}</b>\n\n{footer()}",
+                    parse_mode="HTML",
+                )
+                try:
+                    await bot.send_message(
+                        target_user_id,
+                        f"{header()}\n\n🗑 Администратор удалил у тебя машину: <b>{car_name}</b>\n\n{footer()}",
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
+            ADMIN_USER_EDIT_PENDING.pop(message.from_user.id, None)
+
+            updated_user = get_user(target_user_id)
+            await message.answer(
+                f"{header()}\n\n"
+                "Выбери следующее действие:\n\n"
+                f"ID: <code>{target_user_id}</code>\n"
+                f"Баланс: <b>{updated_user['coins']}</b> Coins\n\n"
+                f"{footer()}",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(text="➕ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_add"),
+                            InlineKeyboardButton(text="➖ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_sub"),
+                        ],
+                        [InlineKeyboardButton(text="💰 Установить баланс", callback_data=f"admin:edit_set:{target_user_id}:coins_set")],
+                        [InlineKeyboardButton(text="🚗 Выдать машину", callback_data=f"admin:edit_set:{target_user_id}:car_add")],
+                        [InlineKeyboardButton(text="🗑 Забрать машину", callback_data=f"admin:edit_set:{target_user_id}:car_remove")],
+                        [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                    ]
+                ),
+                parse_mode="HTML",
+            )
+            return
+
+        except ValueError:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Неверный формат данных\n"
+                "Проверь ввод и отправь снова\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
     if is_owner(message.from_user.id) and message.from_user.id in ADMIN_BROADCAST_PENDING:
         text = (message.text or "").strip()
         if not text:
@@ -1502,6 +1764,8 @@ async def admin_panel(call: CallbackQuery):
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
+            [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
             [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
             [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
         ]
@@ -1534,6 +1798,8 @@ async def admin_command(message: Message):
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
+            [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
             [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
             [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
         ]
@@ -1631,6 +1897,148 @@ async def admin_broadcast_menu(call: CallbackQuery):
                     InlineKeyboardButton(text="👥 Группы", callback_data="admin:broadcast_target:groups"),
                 ],
                 [InlineKeyboardButton(text="🌐 ЛС + Группы", callback_data="admin:broadcast_target:all")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:user_profile")
+async def admin_user_profile_prompt(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    ADMIN_PROFILE_LOOKUP_PENDING.add(call.from_user.id)
+    ADMIN_EDIT_LOOKUP_PENDING.discard(call.from_user.id)
+    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "👤 <b>Профиль игрока</b>\n\n"
+        "Отправь ID игрока одним сообщением.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:edit_user")
+async def admin_edit_user_prompt(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    ADMIN_EDIT_LOOKUP_PENDING.add(call.from_user.id)
+    ADMIN_PROFILE_LOOKUP_PENDING.discard(call.from_user.id)
+    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "✏️ <b>Редактирование игрока</b>\n\n"
+        "Отправь ID игрока одним сообщением.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:edit_user_id:"))
+async def admin_edit_user_from_profile(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    parts = call.data.split(":")
+    if len(parts) < 3 or not parts[2].isdigit():
+        await call.answer("❌ Некорректный ID", show_alert=True)
+        return
+
+    target_user_id = int(parts[2])
+    target_user = get_user(target_user_id)
+    if not target_user:
+        await call.answer("❌ Игрок не найден", show_alert=True)
+        return
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🛠 <b>Редактирование игрока</b>\n\n"
+        f"ID: <code>{target_user_id}</code>\n"
+        f"Баланс: <b>{target_user['coins']}</b> Coins\n\n"
+        "Выбери действие:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="➕ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_add"),
+                    InlineKeyboardButton(text="➖ Монеты", callback_data=f"admin:edit_set:{target_user_id}:coins_sub"),
+                ],
+                [InlineKeyboardButton(text="💰 Установить баланс", callback_data=f"admin:edit_set:{target_user_id}:coins_set")],
+                [InlineKeyboardButton(text="🚗 Выдать машину", callback_data=f"admin:edit_set:{target_user_id}:car_add")],
+                [InlineKeyboardButton(text="🗑 Забрать машину", callback_data=f"admin:edit_set:{target_user_id}:car_remove")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:edit_set:"))
+async def admin_edit_set_action(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    parts = call.data.split(":")
+    if len(parts) != 4 or not parts[2].isdigit():
+        await call.answer("❌ Некорректные данные", show_alert=True)
+        return
+
+    target_user_id = int(parts[2])
+    action = parts[3]
+    if action not in {"coins_add", "coins_sub", "coins_set", "car_add", "car_remove"}:
+        await call.answer("❌ Неизвестное действие", show_alert=True)
+        return
+
+    target_user = get_user(target_user_id)
+    if not target_user:
+        await call.answer("❌ Игрок не найден", show_alert=True)
+        return
+
+    ADMIN_USER_EDIT_PENDING[call.from_user.id] = {
+        "target_user_id": target_user_id,
+        "action": action,
+    }
+
+    prompt_map = {
+        "coins_add": "Введи сумму для начисления (целое число > 0)",
+        "coins_sub": "Введи сумму для списания (целое число > 0)",
+        "coins_set": "Введи новый баланс (целое число >= 0)",
+        "car_add": "Введи ключ машины из cards.json (например: toyota_camry)",
+        "car_remove": "Введи ключ машины для удаления (например: toyota_camry)",
+    }
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "✏️ <b>Редактирование игрока</b>\n\n"
+        f"ID: <code>{target_user_id}</code>\n"
+        f"{prompt_map[action]}\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
             ]
         ),
