@@ -1833,6 +1833,7 @@ async def buy_case(call: CallbackQuery):
     )
 
     emoji = RARITY_EMOJI.get(rarity, "❓")
+    sell_price = card.get("sell_price", 0)
     
     await delete_message_safe(call.message)
     
@@ -1841,6 +1842,7 @@ async def buy_case(call: CallbackQuery):
         f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
+        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
         f"{footer()}"
     )
     
@@ -1943,12 +1945,14 @@ async def free_case(call: CallbackQuery):
     )
 
     await delete_message_safe(call.message)
+    sell_price = card.get("sell_price", 0)
     
     caption = (
         f"{header()}\n\n"
         "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +100 Coins\n\n"
         f"{footer()}"
     )
@@ -2531,12 +2535,14 @@ async def group_text_trigger(message: Message):
         card_id,
         rarity,
     )
+    sell_price = card.get("sell_price", 0)
 
     caption = (
         f"{header()}\n\n"
         f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +100 Coins\n\n"
         f"{footer()}"
     )
