@@ -413,7 +413,7 @@ async def process_group_weekly_rewards(chat_id: int):
         reward = GROUP_WEEKLY_REWARDS[i]
         add_coins(row["user_id"], reward)
         lines.append(
-            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+            f"{medals[i]} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
         )
 
     mark_group_week_rewarded(chat_id, prev_week)
@@ -453,7 +453,7 @@ async def process_global_weekly_rewards_once():
     for i, row in enumerate(top):
         reward = GLOBAL_WEEKLY_REWARDS[i]
         lines.append(
-            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+            f"{medals[i]} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
         )
 
     text = (
@@ -487,7 +487,7 @@ async def maybe_notify_global_weekly_results(target: Message, user_id: int):
     for i, row in enumerate(top):
         reward = GLOBAL_WEEKLY_REWARDS[i]
         lines.append(
-            f"{medals[i]} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
+            f"{medals[i]} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
         )
 
     text = (
@@ -582,17 +582,17 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     if stat_type == "coins":
         top = get_top_users_by_coins(10)
         title = "🏆 <b>ТОП ПО МОНЕТАМ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['coins']} 💰"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['coins']} 💰"
     elif stat_type == "week_cases":
         week_key = current_week_key()
         top = get_top_users_by_weekly_cases(week_key, 10)
         title = f"📅 <b>ТОП НЕДЕЛИ ПО ОТКРЫТИЯМ</b>\n<code>{week_key}</code>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов"
     else:
         top = get_top_users_by_collection(10)
         total_cards = len(CARDS)
         title = "🚗 <b>ТОП ПО КОЛЛЕКЦИИ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['count']}/{total_cards} 🚗"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['count']}/{total_cards} 🚗"
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     lines = []
@@ -971,7 +971,7 @@ async def start(message: Message):
 @dp.callback_query(F.data == "start")
 async def start_menu(call: CallbackQuery):
     if call.message.chat.type != "private":
-        await call.answer("❌ Меню доступно только в личных сообщениях", show_alert=True)
+        await call.answer("❌ Меню доступно только в ЛС", show_alert=True)
         return
     
     # Удаляем предыдущий стикер, если был
@@ -1509,7 +1509,7 @@ async def admin_week_status(call: CallbackQuery):
 
     lines = []
     for i, row in enumerate(global_top, start=1):
-        lines.append(f"{i}. <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов")
+        lines.append(f"{i}. <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов")
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -1578,7 +1578,7 @@ async def admin_broadcast_target(call: CallbackQuery):
         "📝 <b>Введи текст рассылки</b>\n\n"
         f"Канал: <b>{target_label}</b>\n"
         "Отправь одним текстовым сообщением в этот чат.\n"
-        "Если передумал — нажми отмену.\n\n"
+        "Если передумал — нажми «Отмена».\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -2316,7 +2316,7 @@ async def bot_added_to_group(update: ChatMemberUpdated):
                 f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
                 f"📝 Команды в группе:\n"
                 f"• <code>кейс</code> - открыть бесплатный кейс\n"
-                f"• <code>баланс</code> - показать баланс\n\n"
+                f"• <code>баланс</code> - узнать баланс\n\n"
                 f"⚙️ <b>Для администрации:</b>\n"
                 f"• <code>/welcome</code> - включить/отключить приветствие новых пользователей\n\n"
                 f"<a href='{bot_link}'>Открыть бота в ЛС</a>, чтобы начать игру!\n\n"
@@ -2351,7 +2351,7 @@ async def welcome_settings(message: Message):
     if not await is_group_admin(message.chat.id, message.from_user.id):
         await message.answer(
             f"{header()}\n\n"
-            f"⚙️ Это команда для администрации\n\n"
+            f"⚙️ Команда только для администрации\n\n"
             f"{footer()}",
             parse_mode="HTML"
         )
@@ -2379,7 +2379,7 @@ async def welcome_settings(message: Message):
 async def garage_group(message: Message):
     await message.answer(
         f"{header()}\n\n"
-        "🚗 Гараж доступен в личных сообщениях с ботом\n\n"
+        "🚗 Гараж доступен в ЛС с ботом\n\n"
         f"{footer()}",
         parse_mode="HTML",
     )
@@ -2388,10 +2388,10 @@ async def garage_group(message: Message):
 @dp.callback_query(F.data.startswith("welcome:"))
 async def welcome_toggle(call: CallbackQuery):
     if call.message.chat.type == "private":
-        await call.answer("❌ Эта кнопка работает только в группах", show_alert=True)
+        await call.answer("❌ Кнопка работает только в группах", show_alert=True)
         return
     if not await is_group_admin(call.message.chat.id, call.from_user.id):
-        await call.answer("⚙️ Эта команда для администрации", show_alert=True)
+        await call.answer("⚙️ Команда только для администрации", show_alert=True)
         return
 
     enabled = call.data.split(":", 1)[1] == "on"
@@ -2583,7 +2583,7 @@ async def top_week_command(message: Message):
     text = f"{header()}\n\n📅 <b>ТОП НЕДЕЛИ В ЭТОЙ ГРУППЕ</b>\n<code>{week_key}</code>\n\n"
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     for i, row in enumerate(top, start=1):
-        text += f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Unknown'}</b> — {row['cases_opened']} кейсов\n"
+        text += f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов\n"
     if not top:
         text += "Пока нет открытий кейсов на этой неделе.\n"
     text += f"\n{footer()}"
@@ -2601,7 +2601,7 @@ async def balance_command(message: Message):
         bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
         await message.answer(
             f"{header()}\n\n"
-            f"👤 {message.from_user.first_name}, зарегистрируйся сначала!\n\n"
+            f"👤 {message.from_user.first_name}, сначала зарегистрируйся!\n\n"
             f"<a href='{bot_link}'>Открыть бота</a>\n\n"
             f"{footer()}",
             parse_mode="HTML"
@@ -2640,7 +2640,7 @@ async def main():
         await bot.set_my_commands(
             [
                 BotCommand(command="welcome", description="Приветствие новичков"),
-                BotCommand(command="balance", description="Показать баланс"),
+                BotCommand(command="balance", description="Узнать баланс"),
                 BotCommand(command="top", description="Топ игроков"),
             ],
             scope=BotCommandScopeAllGroupChats()
