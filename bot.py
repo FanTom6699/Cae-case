@@ -516,8 +516,9 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
         add_coins(user_id, task["reward"])
         mark_daily_task_rewarded(user_id, day_key, task_key)
 
-        if notify_message is not None:
-            await notify_message.answer(
+        try:
+            await bot.send_message(
+                user_id,
                 f"{header()}\n\n"
                 "✅ <b>Задание выполнено!</b>\n\n"
                 f"📌 {task['title']}\n"
@@ -525,6 +526,8 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
                 f"{footer()}",
                 parse_mode="HTML",
             )
+        except Exception:
+            pass
 
 
 async def is_group_admin(chat_id, user_id):
