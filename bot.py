@@ -140,6 +140,21 @@ def draw_random_card(user_id):
     return draw_card_from_lists(user_id, cards, ALL_CARDS)
 
 
+def draw_free_case_card(user_id):
+    """Бесплатный кейс: только Common/Rare/Epic (без Legendary)."""
+    rand = random.random()
+
+    if rand < 0.70:  # 70% Common
+        cards = COMMON_CARDS
+    elif rand < 0.90:  # 20% Rare
+        cards = RARE_CARDS
+    else:  # 10% Epic
+        cards = EPIC_CARDS
+
+    fallback_cards = COMMON_CARDS + RARE_CARDS + EPIC_CARDS
+    return draw_card_from_lists(user_id, cards, fallback_cards)
+
+
 def draw_card_from_lists(user_id, primary_cards, fallback_cards):
     """Выбирает машину без дублей; если в primary пусто, берет из fallback."""
     available_primary = [c for c in primary_cards if not has_car_in_garage(user_id, c)]
@@ -334,6 +349,26 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     )
 
     await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+
+
+async def get_group_top_by_coins(chat_id: int, limit: int = 10):
+    candidates = get_top_users_by_coins(300)
+    top = []
+    allowed_statuses = {"creator", "administrator", "member", "restricted"}
+
+    for row in candidates:
+        try:
+            member = await bot.get_chat_member(chat_id, row["user_id"])
+            if member.status in allowed_statuses:
+                top.append(row)
+                if len(top) >= limit:
+                    break
+        except TelegramBadRequest:
+            continue
+        except Exception:
+            continue
+
+    return top
 
 
 def group_case_rate_limit_ok(chat_id, user_id):
@@ -1215,7 +1250,7 @@ async def free_case(call: CallbackQuery):
         await call.answer()
         return
 
-    card_id = draw_random_card(call.from_user.id)
+    card_id = draw_free_case_card(call.from_user.id)
     
     if card_id is None:
         update_last_free_case_time(user["user_id"])
@@ -1791,7 +1826,7 @@ async def group_text_trigger(message: Message):
         )
         return
 
-    card_id = draw_random_card(message.from_user.id)
+    card_id = draw_free_case_card(message.from_user.id)
     
     if card_id is None:
         await message.answer(
@@ -1842,11 +1877,13 @@ async def group_text_trigger(message: Message):
 
 @dp.message(F.chat.type != "private", Command("top"))
 async def top_command(message: Message):
-    top = get_top_users_by_coins(10)
-    
-    text = f"{header()}\n\n🏆 <b>ГЛОБАЛЬНЫЙ ТОП</b>\n\n"
+    top = await get_group_top_by_coins(message.chat.id, 10)
+
+    text = f"{header()}\n\n🏆 <b>ТОП ЭТОЙ ГРУППЫ</b>\n\n"
     for i, row in enumerate(top, start=1):
         text += f"{i}. <b>{row['first_name']}</b> - {row['coins']} 💰\n"
+    if not top:
+        text += "Пока нет участников с профилем в боте.\n"
     text += f"\n{footer()}"
     
     await message.answer(text, parse_mode="HTML")
