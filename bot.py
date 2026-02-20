@@ -43,6 +43,7 @@ from database import (
     has_car_in_garage,
     get_top_users_by_coins,
     get_top_users_by_collection,
+    search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
     ensure_daily_task_row,
@@ -125,6 +126,7 @@ FEEDBACK_PENDING = {}
 ADMIN_BROADCAST_PENDING = {}
 ADMIN_PROFILE_LOOKUP_PENDING = set()
 ADMIN_EDIT_LOOKUP_PENDING = set()
+ADMIN_USER_FIND_PENDING = set()
 ADMIN_USER_EDIT_PENDING = {}
 LAST_CAR_VIEW_MESSAGE_IDS = {}  # user_id -> (sticker_id, main_message_id)
 GARAGE_MESSAGE_ID = {}  # user_id -> message_id сообщения гаража для редактирования
@@ -1241,6 +1243,60 @@ async def feedback_cancel(call: CallbackQuery):
 
 @dp.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def feedback_message(message: Message):
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_USER_FIND_PENDING:
+        query = (message.text or "").strip()
+        if len(query) < 2:
+            await message.answer(
+                f"{header()}\n\n"
+                "Введи минимум 2 символа для поиска.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        rows = search_users_by_nick(query, 20)
+        if not rows:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ По такому нику игроки не найдены\n\n"
+                f"{footer()}",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="🔁 Новый поиск", callback_data="admin:user_find")],
+                        [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                    ]
+                ),
+                parse_mode="HTML",
+            )
+            return
+
+        ADMIN_USER_FIND_PENDING.discard(message.from_user.id)
+
+        lines = []
+        kb = []
+        for row in rows[:10]:
+            username = row.get("username")
+            first_name = row.get("first_name") or "Игрок"
+            nick = f"@{username}" if username else "(без username)"
+            uid = row["user_id"]
+            lines.append(f"• <b>{first_name}</b> {nick} — <code>{uid}</code>")
+            kb.append([
+                InlineKeyboardButton(text=f"✏️ Редактировать {uid}", callback_data=f"admin:edit_user_id:{uid}")
+            ])
+
+        kb.append([InlineKeyboardButton(text="🔁 Новый поиск", callback_data="admin:user_find")])
+        kb.append([InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")])
+
+        await message.answer(
+            f"{header()}\n\n"
+            f"🔎 <b>Найдено игроков:</b> {len(rows)}\n\n"
+            f"{chr(10).join(lines)}\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+        return
+
     if is_owner(message.from_user.id) and message.from_user.id in ADMIN_PROFILE_LOOKUP_PENDING:
         text = (message.text or "").strip()
         if not text.isdigit():
@@ -1765,6 +1821,7 @@ async def admin_panel(call: CallbackQuery):
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
+            [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
             [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
             [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
             [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
@@ -1799,6 +1856,7 @@ async def admin_command(message: Message):
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
+            [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
             [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
             [InlineKeyboardButton(text="📣 Массовая рассылка", callback_data="admin:broadcast")],
             [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
@@ -1919,6 +1977,33 @@ async def admin_user_profile_prompt(call: CallbackQuery):
         f"{header()}\n\n"
         "👤 <b>Профиль игрока</b>\n\n"
         "Отправь ID игрока одним сообщением.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:user_find")
+async def admin_user_find_prompt(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    ADMIN_USER_FIND_PENDING.add(call.from_user.id)
+    ADMIN_PROFILE_LOOKUP_PENDING.discard(call.from_user.id)
+    ADMIN_EDIT_LOOKUP_PENDING.discard(call.from_user.id)
+    ADMIN_USER_EDIT_PENDING.pop(call.from_user.id, None)
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🔎 <b>Поиск игрока по нику</b>\n\n"
+        "Введи ник или часть ника (можно без @).\n"
+        "Также ищет по имени профиля.\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[

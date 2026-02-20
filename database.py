@@ -747,6 +747,30 @@ def get_top_users_by_collection(limit=10):
     ]
 
 
+def search_users_by_nick(query, limit=20):
+    conn = get_connection()
+    cur = conn.cursor()
+    pattern = f"%{query.lower()}%"
+    cur.execute(
+        """
+        SELECT user_id, username, first_name, coins
+        FROM users
+        WHERE LOWER(COALESCE(username, '')) LIKE ?
+           OR LOWER(COALESCE(first_name, '')) LIKE ?
+        ORDER BY coins DESC, user_id ASC
+        LIMIT ?
+        """,
+        (pattern, pattern, limit)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "coins": r[3]}
+        for r in rows
+    ]
+
+
 def set_user_coins(user_id, amount):
     conn = get_connection()
     cur = conn.cursor()
