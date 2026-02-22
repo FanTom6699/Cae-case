@@ -579,6 +579,28 @@ def get_top_users_by_group_weekly_cases(chat_id, week_key, limit=10):
     ]
 
 
+def clear_weekly_cases_stats(week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM weekly_case_stats WHERE week_key = ?",
+        (week_key,)
+    )
+    conn.commit()
+    conn.close()
+
+
+def clear_group_weekly_cases_stats(chat_id, week_key):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "DELETE FROM weekly_group_case_stats WHERE chat_id = ? AND week_key = ?",
+        (chat_id, week_key)
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_all_user_ids():
     conn = get_connection()
     cur = conn.cursor()

@@ -58,6 +58,8 @@ from database import (
     get_top_users_by_weekly_cases,
     increment_weekly_group_cases_opened,
     get_top_users_by_group_weekly_cases,
+    clear_group_weekly_cases_stats,
+    clear_weekly_cases_stats,
     has_group_week_rewarded,
     mark_group_week_rewarded,
     has_global_week_rewarded,
@@ -366,15 +368,19 @@ def clear_admin_pending_states(user_id: int):
 
 def main_menu_kb(user_id: int = None):
     kb = [
-        [InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free")],
-        [InlineKeyboardButton(text="💳 Купить кейс", callback_data="menu:buy_cases")],
-        [InlineKeyboardButton(text="📅 Ежедневные задания", callback_data="menu:daily")],
-        [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="menu:profile")],
-        [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
-        [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
-        [InlineKeyboardButton(text="💰 Баланс", callback_data="menu:balance")],
-        [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
+        [
+            InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free"),
+            InlineKeyboardButton(text="💳 Купить кейс", callback_data="menu:buy_cases"),
+        ],
+        [
+            InlineKeyboardButton(text="📅 Ежедневные задания", callback_data="menu:daily"),
+            InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0"),
+        ],
+        [
+            InlineKeyboardButton(text="👤 Профиль", callback_data="menu:profile"),
+            InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats"),
+        ],
+        [InlineKeyboardButton(text="📚 Дополнительно", callback_data="menu:more")],
     ]
 
     if user_id is not None and is_owner(user_id):
@@ -486,6 +492,7 @@ async def process_group_weekly_rewards(chat_id: int):
         )
 
     mark_group_week_rewarded(chat_id, prev_week)
+    clear_group_weekly_cases_stats(chat_id, prev_week)
     award_time = datetime.utcnow().strftime("%d.%m.%Y %H:%M UTC")
 
     msg = await bot.send_message(
@@ -516,6 +523,7 @@ async def process_global_weekly_rewards_once():
         add_coins(row["user_id"], GLOBAL_WEEKLY_REWARDS[i])
 
     mark_global_week_rewarded(prev_week)
+    clear_weekly_cases_stats(prev_week)
 
     medals = ["🥇", "🥈", "🥉"]
     lines = []
@@ -529,6 +537,7 @@ async def process_global_weekly_rewards_once():
         f"{header()}\n\n"
         f"🌍 <b>ИТОГИ ОБЩЕГО ТОПА НЕДЕЛИ</b>\n<code>{prev_week}</code>\n\n"
         f"{chr(10).join(lines)}\n\n"
+        "ℹ️ Недельная статистика обновлена: начинается новый соревновательный цикл.\n\n"
         f"✅ Награды начислены: <b>{datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')}</b>\n\n"
         f"{footer()}"
     )
@@ -551,6 +560,9 @@ async def maybe_notify_global_weekly_results(target: Message, user_id: int):
         return
 
     top = get_top_users_by_weekly_cases(prev_week, 3)
+    if not top:
+        return
+
     medals = ["🥇", "🥈", "🥉"]
     lines = []
     for i, row in enumerate(top):
@@ -562,7 +574,7 @@ async def maybe_notify_global_weekly_results(target: Message, user_id: int):
     text = (
         f"{header()}\n\n"
         f"🌍 <b>ИТОГИ ОБЩЕГО ТОПА НЕДЕЛИ</b>\n<code>{prev_week}</code>\n\n"
-        f"{chr(10).join(lines) if lines else 'На прошлой неделе победителей не было.'}\n"
+        f"{chr(10).join(lines)}\n"
         f"✅ Дата начисления: <b>{datetime.utcnow().strftime('%d.%m.%Y %H:%M UTC')}</b>\n\n"
         f"{footer()}"
     )
@@ -1132,6 +1144,37 @@ async def help_menu(call: CallbackQuery):
         help_text,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "menu:more")
+async def more_menu(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "📚 Дополнительно доступно только в ЛС\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📚 <b>Дополнительно</b>\n\n"
+        "Выбирай раздел:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
+                [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
+                [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
+            ]
         ),
         parse_mode="HTML",
     )
