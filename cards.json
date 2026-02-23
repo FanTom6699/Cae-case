@@ -548,7 +548,7 @@
                     "name_en":  "9ff GT9",
                     "rarity":  "Legendary",
                     "image":  "",
-                    "sticker_id":  CAACAgIAAxkDAAIIbGmb23v9QkOeOwMjky8F1NASLy2KAAIBhQAC9pThSOTgxmLjjRz1OgQ"",
+                    "sticker_id":  "CAACAgIAAxkDAAIIbGmb23v9QkOeOwMjky8F1NASLy2KAAIBhQAC9pThSOTgxmLjjRz1OgQ",
                     "sell_price":  580000
                 },
     "gumpert_apollo":  {
@@ -556,7 +556,7 @@
                            "name_en":  "Gumpert Apollo",
                            "rarity":  "Legendary",
                            "image":  "",
-                           "sticker_id":  "",
+                           "sticker_id":  "CAACAgIAAxkDAAIIhWmb6xy5yONSa0_WHQ7vRohU0LnjAAJghQAC9pThSIJWX-JlvcT4OgQ",
                            "sell_price":  450000
                        },
     "scc_ultimate_aero":  {
