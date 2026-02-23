@@ -2699,7 +2699,7 @@ async def buy_case(call: CallbackQuery):
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
-            f"⭐ Опыт: +{xp_gain} XP\n\n"
+            "\n"
         )
 
     caption = (
@@ -2707,6 +2707,7 @@ async def buy_case(call: CallbackQuery):
         f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
+        f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
         f"{footer()}"
@@ -2844,7 +2845,7 @@ async def free_case(call: CallbackQuery):
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
-            f"⭐ Опыт: +{xp_gain} XP\n"
+            ""
         )
 
     caption = (
@@ -2852,6 +2853,7 @@ async def free_case(call: CallbackQuery):
         "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
@@ -3466,7 +3468,7 @@ async def group_text_trigger(message: Message):
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
-            f"⭐ Опыт: +{xp_gain} XP\n"
+            ""
         )
 
     caption = (
@@ -3474,6 +3476,7 @@ async def group_text_trigger(message: Message):
         f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
