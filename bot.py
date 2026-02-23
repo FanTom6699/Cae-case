@@ -2711,16 +2711,30 @@ async def buy_case(call: CallbackQuery):
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
         f"{footer()}"
     )
+
+    result_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🔙 Назад", callback_data="menu:buy_cases"),
+                InlineKeyboardButton(text="🏠 Меню", callback_data="start"),
+            ]
+        ]
+    )
     
-    success = await send_car_image(call.message, card, rarity, caption, user_id=call.from_user.id)
+    success = await send_car_image(
+        call.message,
+        card,
+        rarity,
+        caption,
+        reply_markup=result_kb,
+        user_id=call.from_user.id,
+    )
     if not success:
         # Если нет фото - отправим текст с кнопкой
         await call.message.answer(
             caption,
             parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[[InlineKeyboardButton(text="🏠 Меню", callback_data="start")]]
-            )
+            reply_markup=result_kb,
         )
     await call.answer()
 
