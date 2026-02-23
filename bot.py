@@ -59,6 +59,7 @@ from database import (
     mark_daily_task_rewarded,
     set_last_daily_notify_day,
     set_user_streak,
+    set_user_duplicate_streak,
     add_user_xp,
     set_user_level_round_rewarded,
     increment_weekly_cases_opened,
@@ -137,6 +138,7 @@ ADMIN_PROFILE_LOOKUP_PENDING = set()
 ADMIN_EDIT_LOOKUP_PENDING = set()
 ADMIN_USER_FIND_PENDING = set()
 ADMIN_USER_EDIT_PENDING = {}
+ADMIN_DUPLICATE_PITY_PENDING = set()
 LAST_CAR_VIEW_MESSAGE_IDS = {}  # user_id -> (sticker_id, main_message_id)
 GARAGE_MESSAGE_ID = {}  # user_id -> message_id сообщения гаража для редактирования
 LAST_STICKER_MESSAGE_ID = {}  # user_id -> message_id последнего стикера
@@ -223,6 +225,7 @@ LEVEL_ROUND_BASE_REWARD = int(os.getenv("LEVEL_ROUND_BASE_REWARD", "10000"))
 LEVEL_ROUND_STEP_BONUS = int(os.getenv("LEVEL_ROUND_STEP_BONUS", "2500"))
 XP_NOTIFY_COOLDOWN_SECONDS = int(os.getenv("XP_NOTIFY_COOLDOWN_SECONDS", "10"))
 XP_NOTIFY_LAST_TS = {}
+DUPLICATE_PITY_THRESHOLD = int(os.getenv("DUPLICATE_PITY_THRESHOLD", "5"))
 
 # =========================
 # RARITY DRAW
@@ -268,6 +271,22 @@ def draw_card_from_lists(user_id, primary_cards, fallback_cards):
         return draw_weighted_card_by_price(fallback_cards)
 
     return None
+
+
+def draw_card_with_pity(user_id, primary_cards, fallback_cards, duplicate_streak):
+    """После N дублей подряд гарантирует новый автомобиль, если есть доступные."""
+    threshold = max(1, int(DUPLICATE_PITY_THRESHOLD))
+
+    if int(duplicate_streak or 0) >= threshold:
+        missing_primary = [card_id for card_id in primary_cards if not has_car_in_garage(user_id, card_id)]
+        if missing_primary:
+            return draw_weighted_card_by_price(missing_primary), True
+
+        missing_fallback = [card_id for card_id in fallback_cards if not has_car_in_garage(user_id, card_id)]
+        if missing_fallback:
+            return draw_weighted_card_by_price(missing_fallback), True
+
+    return draw_card_from_lists(user_id, primary_cards, fallback_cards), False
 
 
 def draw_weighted_card_by_price(card_ids):
@@ -396,6 +415,7 @@ def clear_admin_pending_states(user_id: int):
     ADMIN_EDIT_LOOKUP_PENDING.discard(user_id)
     ADMIN_USER_FIND_PENDING.discard(user_id)
     ADMIN_USER_EDIT_PENDING.pop(user_id, None)
+    ADMIN_DUPLICATE_PITY_PENDING.discard(user_id)
 
 
 def main_menu_kb(user_id: int = None):
@@ -1528,6 +1548,47 @@ async def feedback_cancel(call: CallbackQuery):
 
 @dp.message(F.chat.type == "private", F.text, ~F.text.startswith("/"))
 async def feedback_message(message: Message):
+    global DUPLICATE_PITY_THRESHOLD
+
+    if is_owner(message.from_user.id) and message.from_user.id in ADMIN_DUPLICATE_PITY_PENDING:
+        text = (message.text or "").strip()
+        try:
+            value = int(text)
+        except ValueError:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Введи целое число от 1 до 100.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        if value < 1 or value > 100:
+            await message.answer(
+                f"{header()}\n\n"
+                "❌ Допустимый диапазон: от 1 до 100.\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            return
+
+        DUPLICATE_PITY_THRESHOLD = value
+        ADMIN_DUPLICATE_PITY_PENDING.discard(message.from_user.id)
+
+        await message.answer(
+            f"{header()}\n\n"
+            "✅ <b>Порог гаранта обновлён</b>\n\n"
+            f"Теперь гарант срабатывает после <b>{DUPLICATE_PITY_THRESHOLD}</b> дублей подряд.\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                ]
+            ),
+            parse_mode="HTML",
+        )
+        return
+
     if is_owner(message.from_user.id) and message.from_user.id in ADMIN_USER_FIND_PENDING:
         query = (message.text or "").strip()
         if len(query) < 2:
@@ -2125,6 +2186,7 @@ async def admin_panel(call: CallbackQuery):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -2165,6 +2227,7 @@ async def admin_command(message: Message):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -2380,6 +2443,32 @@ async def admin_week_status(call: CallbackQuery):
             inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:duplicate_pity")
+async def admin_duplicate_pity_prompt(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    clear_admin_pending_states(call.from_user.id)
+    ADMIN_DUPLICATE_PITY_PENDING.add(call.from_user.id)
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🛡 <b>Гарант дублей</b>\n\n"
+        f"Текущий порог: <b>{DUPLICATE_PITY_THRESHOLD}</b> дублей подряд\n\n"
+        "Отправь новое число (от 1 до 100).\n"
+        "Изменение применяется сразу, без перезапуска.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
             ]
         ),
         parse_mode="HTML",
@@ -2806,16 +2895,18 @@ async def buy_case(call: CallbackQuery):
             rarity = r
             break
 
-    # Выбираем машину из этой рарити (без дублей)
+    # Выбираем машину из этой рарити
     case_cards = COMMON_CARDS + RARE_CARDS + EPIC_CARDS + LEGENDARY_CARDS
+    duplicate_streak = int(user.get("duplicate_streak") or 0)
+    pity_triggered = False
     if rarity == "Common":
-        card_id = draw_card_from_lists(call.from_user.id, COMMON_CARDS, case_cards)
+        card_id, pity_triggered = draw_card_with_pity(call.from_user.id, COMMON_CARDS, case_cards, duplicate_streak)
     elif rarity == "Rare":
-        card_id = draw_card_from_lists(call.from_user.id, RARE_CARDS, case_cards)
+        card_id, pity_triggered = draw_card_with_pity(call.from_user.id, RARE_CARDS, case_cards, duplicate_streak)
     elif rarity == "Epic":
-        card_id = draw_card_from_lists(call.from_user.id, EPIC_CARDS, case_cards)
+        card_id, pity_triggered = draw_card_with_pity(call.from_user.id, EPIC_CARDS, case_cards, duplicate_streak)
     else:  # Legendary
-        card_id = draw_card_from_lists(call.from_user.id, LEGENDARY_CARDS, case_cards)
+        card_id, pity_triggered = draw_card_with_pity(call.from_user.id, LEGENDARY_CARDS, case_cards, duplicate_streak)
     
     if card_id is None:
         await call.answer("❌ Все машины этого кейса уже в твоём гараже!", show_alert=True)
@@ -2839,8 +2930,10 @@ async def buy_case(call: CallbackQuery):
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
         add_coins(call.from_user.id, duplicate_coins, source="duplicate_compensation")
+        set_user_duplicate_streak(call.from_user.id, duplicate_streak + 1)
     else:
         add_car_to_garage(call.from_user.id, card_id, rarity)
+        set_user_duplicate_streak(call.from_user.id, 0)
 
     increment_total_cases_opened(call.from_user.id)
     await apply_xp_progress(call.from_user.id, rarity, notify_message=call.message)
@@ -2849,7 +2942,7 @@ async def buy_case(call: CallbackQuery):
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(call.from_user.id, "get_rare_plus", notify_message=call.message)
     logger.info(
-        "buy_case_opened user_id=%s case=%s card_id=%s rarity=%s price=%s duplicate=%s duplicate_coins=%s",
+        "buy_case_opened user_id=%s case=%s card_id=%s rarity=%s price=%s duplicate=%s duplicate_coins=%s pity=%s",
         call.from_user.id,
         case_type,
         card_id,
@@ -2857,6 +2950,7 @@ async def buy_case(call: CallbackQuery):
         case_info["price"],
         is_duplicate,
         duplicate_coins,
+        pity_triggered,
     )
 
     emoji = RARITY_EMOJI.get(rarity, "❓")
@@ -2871,12 +2965,16 @@ async def buy_case(call: CallbackQuery):
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
             "\n"
         )
+    pity_text = ""
+    if pity_triggered and not is_duplicate:
+        pity_text = "🛡 <b>Гарант сработал:</b> выдана новая машина\n\n"
 
     caption = (
         f"{header()}\n\n"
         f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
+        f"{pity_text}"
         f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
@@ -2950,7 +3048,9 @@ async def free_case(call: CallbackQuery):
         await call.answer()
         return
 
-    card_id = draw_free_case_card(call.from_user.id)
+    duplicate_streak = int(user.get("duplicate_streak") or 0)
+    free_case_cards = COMMON_CARDS + RARE_CARDS + EPIC_CARDS
+    card_id, pity_triggered = draw_card_with_pity(call.from_user.id, free_case_cards, free_case_cards, duplicate_streak)
     
     if card_id is None:
         update_last_free_case_time(user["user_id"])
@@ -2986,8 +3086,10 @@ async def free_case(call: CallbackQuery):
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
         add_coins(user["user_id"], duplicate_coins, source="duplicate_compensation")
+        set_user_duplicate_streak(user["user_id"], duplicate_streak + 1)
     else:
         add_car_to_garage(user["user_id"], card_id, rarity)
+        set_user_duplicate_streak(user["user_id"], 0)
 
     increment_total_cases_opened(user["user_id"])
     await apply_xp_progress(user["user_id"], rarity, notify_message=call.message)
@@ -2998,13 +3100,14 @@ async def free_case(call: CallbackQuery):
     add_coins(user["user_id"], FREE_CASE_BONUS_COINS, source="free_case_bonus")
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",
+        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s pity=%s",
         call.from_user.id,
         card_id,
         rarity,
         FREE_CASE_BONUS_COINS,
         is_duplicate,
         duplicate_coins,
+        pity_triggered,
     )
 
     await delete_message_safe(call.message)
@@ -3017,12 +3120,16 @@ async def free_case(call: CallbackQuery):
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
             ""
         )
+    pity_text = ""
+    if pity_triggered and not is_duplicate:
+        pity_text = "🛡 <b>Гарант сработал:</b> выдана новая машина\n"
 
     caption = (
         f"{header()}\n\n"
         "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"{pity_text}"
         f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
@@ -3583,7 +3690,9 @@ async def group_text_trigger(message: Message):
         )
         return
 
-    card_id = draw_free_case_card(message.from_user.id)
+    duplicate_streak = int(user.get("duplicate_streak") or 0)
+    free_case_cards = COMMON_CARDS + RARE_CARDS + EPIC_CARDS
+    card_id, pity_triggered = draw_card_with_pity(message.from_user.id, free_case_cards, free_case_cards, duplicate_streak)
     
     if card_id is None:
         await message.answer(
@@ -3609,8 +3718,10 @@ async def group_text_trigger(message: Message):
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
         add_coins(user["user_id"], duplicate_coins, source="duplicate_compensation")
+        set_user_duplicate_streak(user["user_id"], duplicate_streak + 1)
     else:
         add_car_to_garage(user["user_id"], card_id, rarity)
+        set_user_duplicate_streak(user["user_id"], 0)
 
     increment_total_cases_opened(user["user_id"])
     await apply_xp_progress(user["user_id"], rarity, notify_message=message)
@@ -3622,7 +3733,7 @@ async def group_text_trigger(message: Message):
     add_coins(user["user_id"], FREE_CASE_BONUS_COINS, source="free_case_bonus")
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",
+        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s pity=%s",
         message.from_user.id,
         message.chat.id,
         card_id,
@@ -3630,6 +3741,7 @@ async def group_text_trigger(message: Message):
         FREE_CASE_BONUS_COINS,
         is_duplicate,
         duplicate_coins,
+        pity_triggered,
     )
     sell_price = get_effective_sell_price(card)
 
@@ -3640,12 +3752,16 @@ async def group_text_trigger(message: Message):
             f"♻️ Компенсация: +{duplicate_coins} Coins\n"
             ""
         )
+    pity_text = ""
+    if pity_triggered and not is_duplicate:
+        pity_text = "🛡 <b>Гарант сработал:</b> выдана новая машина\n"
 
     caption = (
         f"{header()}\n\n"
         f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"{pity_text}"
         f"⭐ Опыт: +{xp_gain} XP\n"
         f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"

@@ -31,7 +31,8 @@ def init_db():
         last_daily_notify_day TEXT,
         streak_current INTEGER DEFAULT 0,
         streak_best INTEGER DEFAULT 0,
-        streak_last_claim_day TEXT
+        streak_last_claim_day TEXT,
+        duplicate_streak INTEGER DEFAULT 0
     )
     """)
 
@@ -214,6 +215,11 @@ def init_db():
             "ALTER TABLE users ADD COLUMN streak_last_claim_day TEXT"
         )
 
+    if "duplicate_streak" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN duplicate_streak INTEGER DEFAULT 0"
+        )
+
     cur.execute(
         "UPDATE users SET created_at = COALESCE(created_at, ?) WHERE created_at IS NULL OR created_at = ''",
         (datetime.utcnow().isoformat(),)
@@ -272,10 +278,10 @@ def add_user(user_id, username=None, first_name=None):
     cur.execute(
         """
         INSERT OR IGNORE INTO users 
-        (user_id, username, first_name, coins, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, username, first_name, coins, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, 0, 0, None, 0, 0, None)  # 1 стартовый кейс
+        (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, 0, 0, None, 0, 0, None, 0)  # 1 стартовый кейс
     )
     conn.commit()
     conn.close()
@@ -297,7 +303,7 @@ def get_user(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day
+        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak
         FROM users WHERE user_id = ?
         """,
         (user_id,)
@@ -324,6 +330,7 @@ def get_user(user_id):
         "streak_current": row[12],
         "streak_best": row[13],
         "streak_last_claim_day": row[14],
+        "duplicate_streak": row[15],
     }
 
 
@@ -337,6 +344,17 @@ def set_user_streak(user_id, current, best, last_claim_day):
         WHERE user_id = ?
         """,
         (current, best, last_claim_day, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def set_user_duplicate_streak(user_id, value):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET duplicate_streak = ? WHERE user_id = ?",
+        (max(0, int(value)), user_id)
     )
     conn.commit()
     conn.close()
