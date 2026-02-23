@@ -47,6 +47,7 @@ from database import (
     get_top_users_by_xp,
     get_user_rank_by_xp,
     get_xp_analytics,
+    get_economy_analytics,
     search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
@@ -548,7 +549,7 @@ async def apply_xp_amount_progress(user_id: int, xp_gain: int, notify_message: M
 
     if reached_round_levels:
         total_bonus = sum(get_round_level_reward(level) for level in reached_round_levels)
-        add_coins(user_id, total_bonus)
+        add_coins(user_id, total_bonus, source="level_round_reward")
         set_user_level_round_rewarded(user_id, reached_round_levels[-1])
 
         if can_notify:
@@ -612,7 +613,7 @@ async def maybe_apply_streak_bonus(target: Message, user):
     reward = get_streak_reward(current_streak)
 
     set_user_streak(user["user_id"], current_streak, best_streak, today)
-    add_coins(user["user_id"], reward)
+    add_coins(user["user_id"], reward, source="streak_reward")
 
     await target.answer(
         f"{header()}\n\n"
@@ -638,7 +639,7 @@ async def process_group_weekly_rewards(chat_id: int):
     lines = []
     for i, row in enumerate(top):
         reward = GROUP_WEEKLY_REWARDS[i]
-        add_coins(row["user_id"], reward)
+        add_coins(row["user_id"], reward, source="weekly_group_reward")
         lines.append(
             f"{medals[i]} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов (+{reward} Coins)"
         )
@@ -672,7 +673,7 @@ async def process_global_weekly_rewards_once():
         return
 
     for i, row in enumerate(top):
-        add_coins(row["user_id"], GLOBAL_WEEKLY_REWARDS[i])
+        add_coins(row["user_id"], GLOBAL_WEEKLY_REWARDS[i], source="weekly_global_reward")
 
     mark_global_week_rewarded(prev_week)
     clear_weekly_cases_stats(prev_week)
@@ -747,7 +748,7 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
 
     if state["just_completed"] and not state["rewarded"]:
         task_xp = int(DAILY_TASK_XP.get(task_key, 0))
-        add_coins(user_id, task["reward"])
+        add_coins(user_id, task["reward"], source=f"daily_task_{task_key}")
         await apply_xp_amount_progress(user_id, task_xp, notify_message=notify_message, source=f"task_{task_key}")
         mark_daily_task_rewarded(user_id, day_key, task_key)
 
@@ -1673,7 +1674,7 @@ async def feedback_message(message: Message):
                 amount = int(text)
                 if amount <= 0:
                     raise ValueError()
-                add_coins(target_user_id, amount)
+                add_coins(target_user_id, amount, source="admin_add")
                 new_user = get_user(target_user_id)
                 await message.answer(
                     f"{header()}\n\n✅ Баланс увеличен на {amount} Coins\nНовый баланс: <b>{new_user['coins']}</b> Coins\n\n{footer()}",
@@ -2092,6 +2093,7 @@ async def admin_panel(call: CallbackQuery):
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
+            [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -2130,6 +2132,7 @@ async def admin_command(message: Message):
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
+            [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -2198,6 +2201,38 @@ async def admin_xp_stats(call: CallbackQuery):
         f"📈 Начислено за 7 дней: <b>{xp_stats['xp_last_days']}</b> XP\n\n"
         f"<b>Топ источников XP:</b>\n"
         f"{chr(10).join(source_lines) if source_lines else 'Пока нет данных'}\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:economy")
+async def admin_economy_stats(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    eco = get_economy_analytics(7)
+    faucet_lines = [f"• <b>{row['source']}</b>: +{row['amount']} Coins" for row in eco.get("top_faucet_sources", [])]
+    sink_lines = [f"• <b>{row['source']}</b>: -{row['amount']} Coins" for row in eco.get("top_sink_sources", [])]
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "💹 <b>Экономика (7 дней)</b>\n\n"
+        f"🟢 Выдано: <b>+{eco['faucet']}</b> Coins\n"
+        f"🔴 Сожжено: <b>-{eco['sink']}</b> Coins\n"
+        f"⚖️ Чистый баланс: <b>{eco['net']:+}</b> Coins\n\n"
+        f"<b>Топ источников выдачи:</b>\n"
+        f"{chr(10).join(faucet_lines) if faucet_lines else 'Пока нет данных'}\n\n"
+        f"<b>Топ источников списания:</b>\n"
+        f"{chr(10).join(sink_lines) if sink_lines else 'Пока нет данных'}\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -2683,7 +2718,7 @@ async def buy_case(call: CallbackQuery):
         return
     
     # Вычитаем Coins только если машина доступна
-    subtract_coins(call.from_user.id, case_info["price"])
+    subtract_coins(call.from_user.id, case_info["price"], source="buy_paid_case")
     update_last_case_time(call.from_user.id)
 
     card = CARDS[card_id]
@@ -2694,7 +2729,7 @@ async def buy_case(call: CallbackQuery):
     
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
-        add_coins(call.from_user.id, duplicate_coins)
+        add_coins(call.from_user.id, duplicate_coins, source="duplicate_compensation")
     else:
         add_car_to_garage(call.from_user.id, card_id, rarity)
 
@@ -2841,7 +2876,7 @@ async def free_case(call: CallbackQuery):
 
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
-        add_coins(user["user_id"], duplicate_coins)
+        add_coins(user["user_id"], duplicate_coins, source="duplicate_compensation")
     else:
         add_car_to_garage(user["user_id"], card_id, rarity)
 
@@ -2851,7 +2886,7 @@ async def free_case(call: CallbackQuery):
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=call.message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=call.message)
-    add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
+    add_coins(user["user_id"], FREE_CASE_BONUS_COINS, source="free_case_bonus")
     update_last_free_case_time(user["user_id"])
     logger.info(
         "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",
@@ -3181,7 +3216,7 @@ async def sell_car(call: CallbackQuery):
 
     # Продаём машину
     delete_car_from_garage(car_id)
-    add_coins(call.from_user.id, sell_price)
+    add_coins(call.from_user.id, sell_price, source="sell_car")
     increment_daily_sold_count(call.from_user.id, day_key)
     await apply_daily_task_progress(call.from_user.id, "sell_car", notify_message=call.message)
     logger.info(
@@ -3464,7 +3499,7 @@ async def group_text_trigger(message: Message):
 
     if is_duplicate:
         duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
-        add_coins(user["user_id"], duplicate_coins)
+        add_coins(user["user_id"], duplicate_coins, source="duplicate_compensation")
     else:
         add_car_to_garage(user["user_id"], card_id, rarity)
 
@@ -3475,7 +3510,7 @@ async def group_text_trigger(message: Message):
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(user["user_id"], "get_rare_plus", notify_message=message)
-    add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
+    add_coins(user["user_id"], FREE_CASE_BONUS_COINS, source="free_case_bonus")
     update_last_free_case_time(user["user_id"])
     logger.info(
         "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",

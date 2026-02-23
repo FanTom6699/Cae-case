@@ -115,6 +115,16 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS economy_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        source TEXT,
+        amount INTEGER DEFAULT 0,
+        created_at TEXT
+    )
+    """)
+
     # =========================
     # GARAGE
     # =========================
@@ -926,6 +936,75 @@ def get_xp_analytics(days=7):
     }
 
 
+def get_economy_analytics(days=7):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cutoff_ts = datetime.utcnow().timestamp() - max(1, int(days)) * 86400
+    cutoff_iso = datetime.utcfromtimestamp(cutoff_ts).isoformat()
+
+    cur.execute(
+        """
+        SELECT COALESCE(SUM(amount), 0)
+        FROM economy_events
+        WHERE created_at >= ? AND amount > 0
+        """,
+        (cutoff_iso,)
+    )
+    faucet = int(cur.fetchone()[0] or 0)
+
+    cur.execute(
+        """
+        SELECT COALESCE(SUM(-amount), 0)
+        FROM economy_events
+        WHERE created_at >= ? AND amount < 0
+        """,
+        (cutoff_iso,)
+    )
+    sink = int(cur.fetchone()[0] or 0)
+
+    cur.execute(
+        """
+        SELECT source, COALESCE(SUM(amount), 0) AS total_amount
+        FROM economy_events
+        WHERE created_at >= ? AND amount > 0
+        GROUP BY source
+        ORDER BY total_amount DESC, source ASC
+        LIMIT 5
+        """,
+        (cutoff_iso,)
+    )
+    top_faucet_sources = [
+        {"source": r[0] or "unknown", "amount": int(r[1] or 0)}
+        for r in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT source, COALESCE(SUM(-amount), 0) AS total_amount
+        FROM economy_events
+        WHERE created_at >= ? AND amount < 0
+        GROUP BY source
+        ORDER BY total_amount DESC, source ASC
+        LIMIT 5
+        """,
+        (cutoff_iso,)
+    )
+    top_sink_sources = [
+        {"source": r[0] or "unknown", "amount": int(r[1] or 0)}
+        for r in cur.fetchall()
+    ]
+
+    conn.close()
+    return {
+        "faucet": faucet,
+        "sink": sink,
+        "net": faucet - sink,
+        "top_faucet_sources": top_faucet_sources,
+        "top_sink_sources": top_sink_sources,
+    }
+
+
 def search_users_by_nick(query, limit=20):
     conn = get_connection()
     cur = conn.cursor()
@@ -961,26 +1040,50 @@ def set_user_coins(user_id, amount):
     conn.close()
 
 
-def add_coins(user_id, amount):
+def add_coins(user_id, amount, source=None):
     """Добавляет Coins к текущему балансу"""
+    delta = max(0, int(amount))
+    if delta <= 0:
+        return
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         "UPDATE users SET coins = coins + ? WHERE user_id = ?",
-        (amount, user_id)
+        (delta, user_id)
     )
+    if source:
+        cur.execute(
+            """
+            INSERT INTO economy_events (user_id, source, amount, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, str(source), delta, datetime.utcnow().isoformat())
+        )
     conn.commit()
     conn.close()
 
 
-def subtract_coins(user_id, amount):
+def subtract_coins(user_id, amount, source=None):
     """Вычитает Coins из баланса"""
+    delta = max(0, int(amount))
+    if delta <= 0:
+        return
+
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
         "UPDATE users SET coins = coins - ? WHERE user_id = ?",
-        (amount, user_id)
+        (delta, user_id)
     )
+    if source:
+        cur.execute(
+            """
+            INSERT INTO economy_events (user_id, source, amount, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, str(source), -delta, datetime.utcnow().isoformat())
+        )
     conn.commit()
     conn.close()
 
