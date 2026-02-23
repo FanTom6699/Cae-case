@@ -473,10 +473,10 @@ def get_level_floor_xp(level: int) -> int:
     return base * ((lvl - 1) ** 2)
 
 
-def render_progress_bar(current_value: int, max_value: int, width: int = 12) -> str:
+def render_progress_bar(current_value: int, max_value: int, width: int = 6) -> str:
     max_v = max(1, int(max_value or 1))
     cur_v = max(0, min(int(current_value or 0), max_v))
-    w = max(5, int(width or 12))
+    w = max(4, int(width or 6))
     ratio = cur_v / max_v
     filled = int(round(ratio * w))
     filled = max(0, min(filled, w))
@@ -830,7 +830,7 @@ async def send_stats(target, from_callback=False):
             [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
             [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
             [InlineKeyboardButton(text="📅 Топ недели", callback_data="stats:week_cases")],
-            [InlineKeyboardButton(text="🏅 Топ по уровню (Топ-10)", callback_data="stats:level")],
+            [InlineKeyboardButton(text="🏅 Топ по уровню", callback_data="stats:level")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
         ]
     )
@@ -858,7 +858,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
             await call.answer("❌ Этот рейтинг доступен только в ЛС", show_alert=True)
             return
         top = get_top_users_by_xp(10)
-        title = "🏅 <b>ТОП-10 ПО УРОВНЮ</b>"
+        title = "🏅 <b>ТОП ПО УРОВНЮ</b>"
         line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {get_level_by_xp(row.get('xp_total', 0))} ур. ({row.get('xp_total', 0)} XP)"
     elif stat_type == "week_cases":
         week_key = current_week_key()
