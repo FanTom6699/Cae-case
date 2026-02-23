@@ -3,6 +3,7 @@ import os
 import json
 import random
 import logging
+import math
 from logging.handlers import TimedRotatingFileHandler
 import time
 from datetime import datetime, timedelta
@@ -43,6 +44,9 @@ from database import (
     has_car_in_garage,
     get_top_users_by_coins,
     get_top_users_by_collection,
+    get_top_users_by_xp,
+    get_user_rank_by_xp,
+    get_xp_analytics,
     search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
@@ -54,6 +58,8 @@ from database import (
     mark_daily_task_rewarded,
     set_last_daily_notify_day,
     set_user_streak,
+    add_user_xp,
+    set_user_level_round_rewarded,
     increment_weekly_cases_opened,
     get_top_users_by_weekly_cases,
     increment_weekly_group_cases_opened,
@@ -177,6 +183,13 @@ DAILY_TASKS = {
     "get_rare_plus": {"title": "Получить машину редкости Редкая и выше", "target": 1, "reward": 7000},
 }
 
+DAILY_TASK_XP = {
+    "free_case": int(os.getenv("XP_TASK_FREE_CASE", "25")),
+    "buy_standard": int(os.getenv("XP_TASK_BUY_STANDARD", "40")),
+    "sell_car": int(os.getenv("XP_TASK_SELL_CAR", "30")),
+    "get_rare_plus": int(os.getenv("XP_TASK_GET_RARE_PLUS", "55")),
+}
+
 STREAK_REWARDS = {
     1: 2000,
     2: 3000,
@@ -189,6 +202,26 @@ STREAK_REWARDS = {
 
 GROUP_WEEKLY_REWARDS = [50000, 30000, 20000]
 GLOBAL_WEEKLY_REWARDS = [100000, 70000, 50000]
+
+XP_GAIN_BY_RARITY = {
+    "Common": int(os.getenv("XP_COMMON", "15")),
+    "Rare": int(os.getenv("XP_RARE", "35")),
+    "Epic": int(os.getenv("XP_EPIC", "90")),
+    "Legendary": int(os.getenv("XP_LEGENDARY", "220")),
+}
+DUPLICATE_REWARD_MULTIPLIER = {
+    "Common": float(os.getenv("DUPLICATE_MULT_COMMON", "0.35")),
+    "Rare": float(os.getenv("DUPLICATE_MULT_RARE", "0.40")),
+    "Epic": float(os.getenv("DUPLICATE_MULT_EPIC", "0.45")),
+    "Legendary": float(os.getenv("DUPLICATE_MULT_LEGENDARY", "0.50")),
+}
+LEVEL_BASE_XP = int(os.getenv("LEVEL_BASE_XP", "100"))
+LEVEL_ROUND_STEP = int(os.getenv("LEVEL_ROUND_STEP", "5"))
+MAX_LEVEL = int(os.getenv("MAX_LEVEL", "100"))
+LEVEL_ROUND_BASE_REWARD = int(os.getenv("LEVEL_ROUND_BASE_REWARD", "10000"))
+LEVEL_ROUND_STEP_BONUS = int(os.getenv("LEVEL_ROUND_STEP_BONUS", "2500"))
+XP_NOTIFY_COOLDOWN_SECONDS = int(os.getenv("XP_NOTIFY_COOLDOWN_SECONDS", "10"))
+XP_NOTIFY_LAST_TS = {}
 
 # =========================
 # RARITY DRAW
@@ -226,14 +259,12 @@ def draw_free_case_card(user_id):
 
 
 def draw_card_from_lists(user_id, primary_cards, fallback_cards):
-    """Выбирает машину без дублей; если в primary пусто, берет из fallback."""
-    available_primary = [c for c in primary_cards if not has_car_in_garage(user_id, c)]
-    if available_primary:
-        return draw_weighted_card_by_price(available_primary)
+    """Выбирает машину из primary; если primary пусто, берет из fallback."""
+    if primary_cards:
+        return draw_weighted_card_by_price(primary_cards)
 
-    available_fallback = [c for c in fallback_cards if not has_car_in_garage(user_id, c)]
-    if available_fallback:
-        return draw_weighted_card_by_price(available_fallback)
+    if fallback_cards:
+        return draw_weighted_card_by_price(fallback_cards)
 
     return None
 
@@ -418,6 +449,127 @@ def get_streak_reward(streak_day: int):
     return STREAK_REWARDS.get(min(streak_day, 7), STREAK_REWARDS[7])
 
 
+def get_level_by_xp(xp_total: int) -> int:
+    xp = max(0, int(xp_total or 0))
+    base = max(1, LEVEL_BASE_XP)
+    level = int(math.isqrt(xp // base) + 1)
+    return min(max(1, level), max(1, MAX_LEVEL))
+
+
+def get_next_level_xp(level: int) -> int:
+    lvl = max(1, int(level or 1))
+    max_level = max(1, MAX_LEVEL)
+    if lvl >= max_level:
+        return 0
+    base = max(1, LEVEL_BASE_XP)
+    return base * (lvl ** 2)
+
+
+def get_level_floor_xp(level: int) -> int:
+    lvl = max(1, int(level or 1))
+    base = max(1, LEVEL_BASE_XP)
+    if lvl <= 1:
+        return 0
+    return base * ((lvl - 1) ** 2)
+
+
+def render_progress_bar(current_value: int, max_value: int, width: int = 12) -> str:
+    max_v = max(1, int(max_value or 1))
+    cur_v = max(0, min(int(current_value or 0), max_v))
+    w = max(5, int(width or 12))
+    ratio = cur_v / max_v
+    filled = int(round(ratio * w))
+    filled = max(0, min(filled, w))
+    empty = w - filled
+    percent = int(round(ratio * 100))
+    return f"{'🟩' * filled}{'⬜' * empty} {percent}%"
+
+
+def get_round_level_reward(level: int) -> int:
+    step = max(1, LEVEL_ROUND_STEP)
+    milestone = max(step, int(level // step) * step)
+    milestone_index = max(1, milestone // step)
+    return LEVEL_ROUND_BASE_REWARD + (milestone_index - 1) * LEVEL_ROUND_STEP_BONUS
+
+
+async def apply_xp_amount_progress(user_id: int, xp_gain: int, notify_message: Message = None, source: str = None):
+    if xp_gain <= 0:
+        return
+
+    before = get_user(user_id)
+    if not before:
+        return
+
+    before_xp = int(before.get("xp_total") or 0)
+    before_level = get_level_by_xp(before_xp)
+    before_round_rewarded = int(before.get("level_round_rewarded") or 0)
+
+    add_user_xp(user_id, xp_gain, source=source)
+
+    after = get_user(user_id)
+    if not after:
+        return
+
+    after_xp = int(after.get("xp_total") or 0)
+    after_level = get_level_by_xp(after_xp)
+    next_level_xp = get_next_level_xp(after_level)
+    xp_to_next_level = 0 if next_level_xp <= 0 else max(0, next_level_xp - after_xp)
+
+    now_ts = time.monotonic()
+    last_notify_ts = XP_NOTIFY_LAST_TS.get(user_id, 0)
+    can_notify = notify_message is not None and (now_ts - last_notify_ts >= max(0, XP_NOTIFY_COOLDOWN_SECONDS))
+
+    if can_notify and after_level > before_level:
+        next_level_line = (
+            "🎯 До следующего уровня: <b>MAX</b>\n"
+            if after_level >= max(1, MAX_LEVEL)
+            else f"🎯 До следующего уровня: {xp_to_next_level} XP\n"
+        )
+        await notify_message.answer(
+            f"{header()}\n\n"
+            "🏅 <b>Новый уровень!</b>\n\n"
+            f"⭐ Опыт: {after_xp} XP\n"
+            f"📈 Уровень: <b>{before_level} → {after_level}</b>\n"
+            f"{next_level_line}\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        XP_NOTIFY_LAST_TS[user_id] = now_ts
+
+    step = max(1, LEVEL_ROUND_STEP)
+    max_level = max(1, MAX_LEVEL)
+    capped_after_level = min(after_level, max_level)
+    next_round_level = max(step, ((before_round_rewarded // step) + 1) * step)
+    reached_round_levels = []
+    level_cursor = next_round_level
+    while level_cursor <= capped_after_level:
+        reached_round_levels.append(level_cursor)
+        level_cursor += step
+
+    if reached_round_levels:
+        total_bonus = sum(get_round_level_reward(level) for level in reached_round_levels)
+        add_coins(user_id, total_bonus)
+        set_user_level_round_rewarded(user_id, reached_round_levels[-1])
+
+        if can_notify:
+            rounds_text = ", ".join(str(level) for level in reached_round_levels)
+            await notify_message.answer(
+                f"{header()}\n\n"
+                "🎁 <b>Награда за круглый уровень!</b>\n\n"
+                f"🏁 Уровни: {rounds_text}\n"
+                f"💰 Награда: +{total_bonus} Coins\n\n"
+                f"{footer()}",
+                parse_mode="HTML",
+            )
+            XP_NOTIFY_LAST_TS[user_id] = time.monotonic()
+
+
+async def apply_xp_progress(user_id: int, rarity: str, notify_message: Message = None):
+    xp_gain = int(XP_GAIN_BY_RARITY.get(rarity, XP_GAIN_BY_RARITY["Common"]))
+    source_key = f"case_{str(rarity or 'Common').lower()}"
+    await apply_xp_amount_progress(user_id, xp_gain, notify_message=notify_message, source=source_key)
+
+
 def ensure_daily_tasks_initialized(user_id, day_key):
     for task_key in DAILY_TASKS:
         ensure_daily_task_row(user_id, day_key, task_key)
@@ -594,7 +746,9 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
     state = add_daily_task_progress(user_id, day_key, task_key, amount, task["target"])
 
     if state["just_completed"] and not state["rewarded"]:
+        task_xp = int(DAILY_TASK_XP.get(task_key, 0))
         add_coins(user_id, task["reward"])
+        await apply_xp_amount_progress(user_id, task_xp, notify_message=notify_message, source=f"task_{task_key}")
         mark_daily_task_rewarded(user_id, day_key, task_key)
 
         try:
@@ -604,6 +758,7 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
                 "✅ <b>Задание выполнено!</b>\n\n"
                 f"📌 {task['title']}\n"
                 f"🎁 Награда: +{task['reward']} Coins\n\n"
+                f"⭐ Опыт: +{task_xp} XP\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
             )
@@ -660,12 +815,22 @@ def get_effective_sell_price(card, rarity_override=None):
     return max(min_price, min(max_price, adjusted))
 
 
+def get_duplicate_reward_coins(card, rarity_override=None):
+    rarity = rarity_override or card.get("rarity", "Common")
+    base_sell = get_effective_sell_price(card, rarity_override=rarity)
+    if base_sell <= 0:
+        return 0
+    ratio = DUPLICATE_REWARD_MULTIPLIER.get(rarity, 0.35)
+    return int(round(base_sell * ratio))
+
+
 async def send_stats(target, from_callback=False):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
             [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
             [InlineKeyboardButton(text="📅 Топ недели", callback_data="stats:week_cases")],
+            [InlineKeyboardButton(text="🏅 Топ по уровню (Топ-10)", callback_data="stats:level")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
         ]
     )
@@ -688,6 +853,13 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         top = get_top_users_by_coins(10)
         title = "🏆 <b>ТОП ПО МОНЕТАМ</b>"
         line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['coins']} 💰"
+    elif stat_type == "level":
+        if call.message.chat.type != "private":
+            await call.answer("❌ Этот рейтинг доступен только в ЛС", show_alert=True)
+            return
+        top = get_top_users_by_xp(10)
+        title = "🏅 <b>ТОП-10 ПО УРОВНЮ</b>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {get_level_by_xp(row.get('xp_total', 0))} ур. ({row.get('xp_total', 0)} XP)"
     elif stat_type == "week_cases":
         week_key = current_week_key()
         top = get_top_users_by_weekly_cases(week_key, 10)
@@ -704,10 +876,23 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
     for i, row in enumerate(top, start=1):
         lines.append(line_format(i, row, medals))
 
+    viewer = get_user(call.from_user.id)
+    viewer_level_line = ""
+    if viewer:
+        viewer_xp = int(viewer.get("xp_total") or 0)
+        viewer_level = get_level_by_xp(viewer_xp)
+        rank_line = ""
+        if stat_type == "level":
+            viewer_rank = get_user_rank_by_xp(call.from_user.id)
+            if viewer_rank:
+                rank_line = f"\n🏆 <b>Твой ранг:</b> #{viewer_rank}"
+        viewer_level_line = f"\n👤 <b>Твой уровень:</b> {viewer_level} ({viewer_xp} XP){rank_line}\n"
+
     text = (
         f"{header()}\n\n"
         f"{title}\n\n"
         f"{chr(10).join(lines) if lines else 'Пока нет данных'}\n\n"
+        f"{viewer_level_line}"
         f"{footer()}"
     )
 
@@ -1826,6 +2011,18 @@ async def profile_menu(call: CallbackQuery):
 
     username = user.get("username")
     nick = f"@{username}" if username else "Без ника"
+    xp_total = int(user.get("xp_total") or 0)
+    level = get_level_by_xp(xp_total)
+    next_level_xp = get_next_level_xp(level)
+    xp_to_next_level = 0 if next_level_xp <= 0 else max(0, next_level_xp - xp_total)
+    next_level_text = "MAX" if level >= max(1, MAX_LEVEL) else f"{xp_to_next_level} XP"
+    if next_level_xp <= 0:
+        xp_bar_text = render_progress_bar(1, 1)
+    else:
+        level_floor_xp = get_level_floor_xp(level)
+        level_span_xp = max(1, next_level_xp - level_floor_xp)
+        level_progress_xp = max(0, xp_total - level_floor_xp)
+        xp_bar_text = render_progress_bar(level_progress_xp, level_span_xp)
 
     text = (
         f"{header()}\n\n"
@@ -1833,6 +2030,10 @@ async def profile_menu(call: CallbackQuery):
         f"🪪 <b>Ник:</b> {nick}\n"
         f"🆔 <b>ID:</b> <code>{user['user_id']}</code>\n"
         f"💰 <b>Баланс:</b> {user['coins']} Coins\n"
+        f"⭐ <b>Опыт:</b> {xp_total} XP\n"
+        f"🏅 <b>Уровень:</b> {level}\n"
+        f"🎯 <b>До следующего:</b> {next_level_text}\n"
+        f"📊 <b>Прогресс:</b> {xp_bar_text}\n"
         f"🗓 <b>Первая регистрация:</b> {reg_text}\n"
         f"🔥 <b>Серия входов:</b> {user.get('streak_current', 0)} дн.\n"
         f"🏆 <b>Лучший стрик:</b> {user.get('streak_best', 0)} дн.\n"
@@ -1872,6 +2073,7 @@ async def admin_panel(call: CallbackQuery):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
+            [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -1909,6 +2111,7 @@ async def admin_command(message: Message):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
+            [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -1944,6 +2147,39 @@ async def admin_stats(call: CallbackQuery):
         f"📅 Записей дневок: <b>{stats['daily_rows']}</b>\n"
         f"🏁 Записей недельки: <b>{stats['weekly_rows']}</b>\n"
         f"🆔 Admin ID: <code>{ADMIN_USER_ID}</code>\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:xp_stats")
+async def admin_xp_stats(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    xp_stats = get_xp_analytics(7)
+    source_lines = []
+    for row in xp_stats.get("top_sources", []):
+        source_lines.append(f"• <b>{row['source']}</b>: {row['amount']} XP")
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "⭐ <b>XP-аналитика (7 дней)</b>\n\n"
+        f"👥 Пользователей: <b>{xp_stats['users_count']}</b>\n"
+        f"🧮 Общий XP: <b>{xp_stats['total_xp']}</b>\n"
+        f"📊 Средний XP: <b>{xp_stats['avg_xp']:.1f}</b>\n"
+        f"🏆 Максимальный XP: <b>{xp_stats['max_xp']}</b>\n"
+        f"📈 Начислено за 7 дней: <b>{xp_stats['xp_last_days']}</b> XP\n\n"
+        f"<b>Топ источников XP:</b>\n"
+        f"{chr(10).join(source_lines) if source_lines else 'Пока нет данных'}\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
@@ -2426,21 +2662,31 @@ async def buy_case(call: CallbackQuery):
 
     card = CARDS[card_id]
     rarity = card["rarity"]
+    is_duplicate = has_car_in_garage(call.from_user.id, card_id)
+    duplicate_coins = 0
+    xp_gain = int(XP_GAIN_BY_RARITY.get(rarity, XP_GAIN_BY_RARITY["Common"]))
     
-    # Добавляем машину в гараж
-    add_car_to_garage(call.from_user.id, card_id, rarity)
+    if is_duplicate:
+        duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
+        add_coins(call.from_user.id, duplicate_coins)
+    else:
+        add_car_to_garage(call.from_user.id, card_id, rarity)
+
     increment_total_cases_opened(call.from_user.id)
+    await apply_xp_progress(call.from_user.id, rarity, notify_message=call.message)
     increment_weekly_cases_opened(call.from_user.id, current_week_key(), 1)
     await apply_daily_task_progress(call.from_user.id, "buy_standard", notify_message=call.message)
     if rarity in ("Rare", "Epic", "Legendary"):
         await apply_daily_task_progress(call.from_user.id, "get_rare_plus", notify_message=call.message)
     logger.info(
-        "buy_case_opened user_id=%s case=%s card_id=%s rarity=%s price=%s",
+        "buy_case_opened user_id=%s case=%s card_id=%s rarity=%s price=%s duplicate=%s duplicate_coins=%s",
         call.from_user.id,
         case_type,
         card_id,
         rarity,
         case_info["price"],
+        is_duplicate,
+        duplicate_coins,
     )
 
     emoji = RARITY_EMOJI.get(rarity, "❓")
@@ -2448,11 +2694,20 @@ async def buy_case(call: CallbackQuery):
     
     await delete_message_safe(call.message)
     
+    duplicate_text = ""
+    if is_duplicate:
+        duplicate_text = (
+            "⚠️ <b>Эта машина уже есть в гараже</b>\n"
+            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"⭐ Опыт: +{xp_gain} XP\n\n"
+        )
+
     caption = (
         f"{header()}\n\n"
         f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
+        f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
         f"{footer()}"
     )
@@ -2539,9 +2794,18 @@ async def free_case(call: CallbackQuery):
         await call.answer("❌ Машина не найдена в каталоге!", show_alert=True)
         return
     rarity = card["rarity"]
+    is_duplicate = has_car_in_garage(user["user_id"], card_id)
+    duplicate_coins = 0
+    xp_gain = int(XP_GAIN_BY_RARITY.get(rarity, XP_GAIN_BY_RARITY["Common"]))
 
-    add_car_to_garage(user["user_id"], card_id, rarity)
+    if is_duplicate:
+        duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
+        add_coins(user["user_id"], duplicate_coins)
+    else:
+        add_car_to_garage(user["user_id"], card_id, rarity)
+
     increment_total_cases_opened(user["user_id"])
+    await apply_xp_progress(user["user_id"], rarity, notify_message=call.message)
     increment_weekly_cases_opened(user["user_id"], current_week_key(), 1)
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=call.message)
     if rarity in ("Rare", "Epic", "Legendary"):
@@ -2549,21 +2813,32 @@ async def free_case(call: CallbackQuery):
     add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s",
+        "free_case_opened user_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",
         call.from_user.id,
         card_id,
         rarity,
         FREE_CASE_BONUS_COINS,
+        is_duplicate,
+        duplicate_coins,
     )
 
     await delete_message_safe(call.message)
     sell_price = get_effective_sell_price(card)
     
+    duplicate_text = ""
+    if is_duplicate:
+        duplicate_text = (
+            "⚠️ <b>Эта машина уже есть в гараже</b>\n"
+            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"⭐ Опыт: +{xp_gain} XP\n"
+        )
+
     caption = (
         f"{header()}\n\n"
         "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
         f"{footer()}"
@@ -3141,9 +3416,18 @@ async def group_text_trigger(message: Message):
     
     card = CARDS[card_id]
     rarity = card["rarity"]
+    is_duplicate = has_car_in_garage(user["user_id"], card_id)
+    duplicate_coins = 0
+    xp_gain = int(XP_GAIN_BY_RARITY.get(rarity, XP_GAIN_BY_RARITY["Common"]))
 
-    add_car_to_garage(user["user_id"], card_id, rarity)
+    if is_duplicate:
+        duplicate_coins = get_duplicate_reward_coins(card, rarity_override=rarity)
+        add_coins(user["user_id"], duplicate_coins)
+    else:
+        add_car_to_garage(user["user_id"], card_id, rarity)
+
     increment_total_cases_opened(user["user_id"])
+    await apply_xp_progress(user["user_id"], rarity, notify_message=message)
     increment_weekly_cases_opened(user["user_id"], current_week_key(), 1)
     increment_weekly_group_cases_opened(message.chat.id, user["user_id"], current_week_key(), 1)
     await apply_daily_task_progress(user["user_id"], "free_case", notify_message=message)
@@ -3152,20 +3436,31 @@ async def group_text_trigger(message: Message):
     add_coins(user["user_id"], FREE_CASE_BONUS_COINS)
     update_last_free_case_time(user["user_id"])
     logger.info(
-        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s",
+        "group_case_opened user_id=%s chat_id=%s card_id=%s rarity=%s bonus=%s duplicate=%s duplicate_coins=%s",
         message.from_user.id,
         message.chat.id,
         card_id,
         rarity,
         FREE_CASE_BONUS_COINS,
+        is_duplicate,
+        duplicate_coins,
     )
     sell_price = get_effective_sell_price(card)
+
+    duplicate_text = ""
+    if is_duplicate:
+        duplicate_text = (
+            "⚠️ <b>Эта машина уже есть в гараже</b>\n"
+            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"⭐ Опыт: +{xp_gain} XP\n"
+        )
 
     caption = (
         f"{header()}\n\n"
         f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
+        f"{duplicate_text}"
         f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
         f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
         f"{footer()}"

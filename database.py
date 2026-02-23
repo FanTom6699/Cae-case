@@ -26,6 +26,8 @@ def init_db():
         cases_common INTEGER DEFAULT 0,
         created_at TEXT,
         total_cases_opened INTEGER DEFAULT 0,
+        xp_total INTEGER DEFAULT 0,
+        level_round_rewarded INTEGER DEFAULT 0,
         last_daily_notify_day TEXT,
         streak_current INTEGER DEFAULT 0,
         streak_best INTEGER DEFAULT 0,
@@ -103,6 +105,16 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS xp_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        source TEXT,
+        amount INTEGER DEFAULT 0,
+        created_at TEXT
+    )
+    """)
+
     # =========================
     # GARAGE
     # =========================
@@ -160,6 +172,16 @@ def init_db():
     if "total_cases_opened" not in columns:
         cur.execute(
             "ALTER TABLE users ADD COLUMN total_cases_opened INTEGER DEFAULT 0"
+        )
+
+    if "xp_total" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN xp_total INTEGER DEFAULT 0"
+        )
+
+    if "level_round_rewarded" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN level_round_rewarded INTEGER DEFAULT 0"
         )
 
     if "last_daily_notify_day" not in columns:
@@ -240,10 +262,10 @@ def add_user(user_id, username=None, first_name=None):
     cur.execute(
         """
         INSERT OR IGNORE INTO users 
-        (user_id, username, first_name, coins, cases_common, last_free_case_time, created_at, total_cases_opened, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (user_id, username, first_name, coins, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, None, 0, 0, None)  # 1 стартовый кейс
+        (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, 0, 0, None, 0, 0, None)  # 1 стартовый кейс
     )
     conn.commit()
     conn.close()
@@ -265,7 +287,7 @@ def get_user(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day
+        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day
         FROM users WHERE user_id = ?
         """,
         (user_id,)
@@ -286,10 +308,12 @@ def get_user(user_id):
         "last_free_case_time": row[6],
         "created_at": row[7],
         "total_cases_opened": row[8],
-        "last_daily_notify_day": row[9],
-        "streak_current": row[10],
-        "streak_best": row[11],
-        "streak_last_claim_day": row[12],
+        "xp_total": row[9],
+        "level_round_rewarded": row[10],
+        "last_daily_notify_day": row[11],
+        "streak_current": row[12],
+        "streak_best": row[13],
+        "streak_last_claim_day": row[14],
     }
 
 
@@ -325,6 +349,42 @@ def increment_total_cases_opened(user_id, amount=1):
     cur.execute(
         "UPDATE users SET total_cases_opened = COALESCE(total_cases_opened, 0) + ? WHERE user_id = ?",
         (amount, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def add_user_xp(user_id, amount, source=None):
+    delta = max(0, int(amount))
+    if delta <= 0:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET xp_total = COALESCE(xp_total, 0) + ? WHERE user_id = ?",
+        (delta, user_id)
+    )
+
+    if source:
+        cur.execute(
+            """
+            INSERT INTO xp_events (user_id, source, amount, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (user_id, str(source), delta, datetime.utcnow().isoformat())
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def set_user_level_round_rewarded(user_id, level_value):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET level_round_rewarded = ? WHERE user_id = ?",
+        (max(0, int(level_value)), user_id)
     )
     conn.commit()
     conn.close()
@@ -767,6 +827,103 @@ def get_top_users_by_collection(limit=10):
         {"user_id": r[0], "username": r[1], "first_name": r[2], "count": r[3]}
         for r in rows
     ]
+
+
+def get_top_users_by_xp(limit=20):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT user_id, username, first_name, COALESCE(xp_total, 0) AS xp_total
+        FROM users
+        ORDER BY xp_total DESC, user_id ASC
+        LIMIT ?
+        """,
+        (limit,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "xp_total": r[3]}
+        for r in rows
+    ]
+
+
+def get_user_rank_by_xp(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT COALESCE(xp_total, 0) FROM users WHERE user_id = ?",
+        (user_id,)
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    user_xp = int(row[0] or 0)
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM users
+        WHERE COALESCE(xp_total, 0) > ?
+           OR (COALESCE(xp_total, 0) = ? AND user_id < ?)
+        """,
+        (user_xp, user_xp, user_id)
+    )
+    higher = int(cur.fetchone()[0] or 0)
+    conn.close()
+    return higher + 1
+
+
+def get_xp_analytics(days=7):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM users")
+    users_count = int(cur.fetchone()[0] or 0)
+
+    cur.execute("SELECT COALESCE(SUM(xp_total), 0), COALESCE(AVG(xp_total), 0), COALESCE(MAX(xp_total), 0) FROM users")
+    total_xp, avg_xp, max_xp = cur.fetchone()
+
+    cutoff = datetime.utcnow().timestamp() - max(1, int(days)) * 86400
+    cutoff_iso = datetime.utcfromtimestamp(cutoff).isoformat()
+
+    cur.execute(
+        """
+        SELECT COALESCE(SUM(amount), 0)
+        FROM xp_events
+        WHERE created_at >= ?
+        """,
+        (cutoff_iso,)
+    )
+    xp_last_days = int(cur.fetchone()[0] or 0)
+
+    cur.execute(
+        """
+        SELECT source, COALESCE(SUM(amount), 0) AS total_amount
+        FROM xp_events
+        WHERE created_at >= ?
+        GROUP BY source
+        ORDER BY total_amount DESC, source ASC
+        LIMIT 5
+        """,
+        (cutoff_iso,)
+    )
+    sources = [{"source": r[0] or "unknown", "amount": int(r[1] or 0)} for r in cur.fetchall()]
+
+    conn.close()
+
+    return {
+        "users_count": users_count,
+        "total_xp": int(total_xp or 0),
+        "avg_xp": float(avg_xp or 0),
+        "max_xp": int(max_xp or 0),
+        "xp_last_days": xp_last_days,
+        "top_sources": sources,
+    }
 
 
 def search_users_by_nick(query, limit=20):
