@@ -979,12 +979,14 @@ async def send_car_image(target, card, car_rarity, caption, reply_markup=None, u
     try:
         if image_path and os.path.exists(image_path):
             image = FSInputFile(image_path)
-            await target.answer_document(
+            media_message = await target.answer_document(
                 image,
                 caption=caption,
                 parse_mode="HTML",
                 reply_markup=reply_markup
             )
+            if user_id:
+                LAST_STICKER_MESSAGE_ID[user_id] = media_message.message_id
             return True
     except (FileNotFoundError, OSError) as e:
         logger.warning(f"Image not found or error: {image_path}, error: {e}")
@@ -1206,6 +1208,14 @@ async def create_sticker_from_photo(message: Message):
 
 @dp.message(F.chat.type == "private", Command("start"))
 async def start(message: Message):
+    # Удаляем медиа последнего открытия кейса, если было
+    media_msg_id = LAST_STICKER_MESSAGE_ID.pop(message.from_user.id, None)
+    if media_msg_id:
+        try:
+            await bot.delete_message(message.chat.id, media_msg_id)
+        except Exception:
+            pass
+
     user = get_user(message.from_user.id)
     is_new = user is None
     
@@ -1273,6 +1283,14 @@ async def start_menu(call: CallbackQuery):
         except Exception:
             pass
         del LAST_CAR_VIEW_MESSAGE_IDS[call.from_user.id]
+
+    # Удаляем медиа последнего открытия кейса, если было
+    media_msg_id = LAST_STICKER_MESSAGE_ID.pop(call.from_user.id, None)
+    if media_msg_id:
+        try:
+            await bot.delete_message(call.message.chat.id, media_msg_id)
+        except Exception:
+            pass
     
     # Просто редактируем текущее сообщение на меню
     await call.message.edit_text(
@@ -2566,6 +2584,14 @@ async def buy_cases_menu(call: CallbackQuery):
     if not user:
         await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
         return
+
+    # Удаляем медиа последнего открытия кейса, если было
+    media_msg_id = LAST_STICKER_MESSAGE_ID.pop(call.from_user.id, None)
+    if media_msg_id:
+        try:
+            await bot.delete_message(call.message.chat.id, media_msg_id)
+        except Exception:
+            pass
     
     paid_case = {
         "name": "Платный",
