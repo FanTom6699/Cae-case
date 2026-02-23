@@ -859,7 +859,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
             return
         top = get_top_users_by_xp(10)
         title = "🏅 <b>ТОП ПО УРОВНЮ</b>"
-        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {get_level_by_xp(row.get('xp_total', 0))} ур. ({row.get('xp_total', 0)} XP)"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {get_level_by_xp(row.get('xp_total', 0))} ур."
     elif stat_type == "week_cases":
         week_key = current_week_key()
         top = get_top_users_by_weekly_cases(week_key, 10)
