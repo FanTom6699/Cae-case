@@ -781,6 +781,36 @@ def format_user_label(user_id, username, first_name):
         return first_name
     return f"ID {user_id}"
 
+
+def get_cars_by_rarity(rarity: str):
+    rows = []
+    for car_key, card in CARDS.items():
+        if card.get("rarity") != rarity:
+            continue
+        rows.append((car_key, card.get("name_ru", car_key)))
+    rows.sort(key=lambda item: item[1].lower())
+    return rows
+
+
+def rarity_slug_to_value(slug: str):
+    mapping = {
+        "common": "Common",
+        "rare": "Rare",
+        "epic": "Epic",
+        "legendary": "Legendary",
+    }
+    return mapping.get(slug)
+
+
+def rarity_value_to_label(rarity: str):
+    mapping = {
+        "Common": "⚪ Обычные",
+        "Rare": "🔵 Редкие",
+        "Epic": "🟣 Эпические",
+        "Legendary": "🟡 Легендарные",
+    }
+    return mapping.get(rarity, rarity)
+
 def free_case_available(user):
     if not user["last_free_case_time"]:
         return True, None
@@ -2095,6 +2125,7 @@ async def admin_panel(call: CallbackQuery):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
             [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
@@ -2134,6 +2165,7 @@ async def admin_command(message: Message):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
             [InlineKeyboardButton(text="✏️ Редактировать игрока", callback_data="admin:edit_user")],
@@ -2238,6 +2270,83 @@ async def admin_economy_stats(call: CallbackQuery):
             inline_keyboard=[
                 [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:cars_menu")
+async def admin_cars_menu(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🚗 <b>Список машин</b>\n\n"
+        "Выбери редкость, чтобы посмотреть ключи для выдачи:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="⚪ Обычные", callback_data="admin:cars_rarity:common"),
+                    InlineKeyboardButton(text="🔵 Редкие", callback_data="admin:cars_rarity:rare"),
+                ],
+                [
+                    InlineKeyboardButton(text="🟣 Эпические", callback_data="admin:cars_rarity:epic"),
+                    InlineKeyboardButton(text="🟡 Легендарные", callback_data="admin:cars_rarity:legendary"),
+                ],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:cars_rarity:"))
+async def admin_cars_by_rarity(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    rarity_slug = call.data.split(":", 2)[2]
+    rarity_value = rarity_slug_to_value(rarity_slug)
+    if not rarity_value:
+        await call.answer("❌ Неизвестная редкость", show_alert=True)
+        return
+
+    rows = get_cars_by_rarity(rarity_value)
+    lines = [f"{RARITY_EMOJI.get(rarity_value, '❓')} <code>{car_key}</code> — {car_name}" for car_key, car_name in rows]
+
+    text = (
+        f"{header()}\n\n"
+        f"🚗 <b>{rarity_value_to_label(rarity_value)}</b>\n"
+        f"Всего: <b>{len(rows)}</b>\n\n"
+        f"{chr(10).join(lines) if lines else 'Список пуст.'}\n\n"
+        f"{footer()}"
+    )
+
+    # Страховка от лимита Telegram 4096 символов
+    if len(text) > 3900:
+        text = (
+            f"{header()}\n\n"
+            f"🚗 <b>{rarity_value_to_label(rarity_value)}</b>\n"
+            f"Всего: <b>{len(rows)}</b>\n\n"
+            "Список слишком длинный для одного сообщения.\n"
+            "Показываю первые 80:\n\n"
+            f"{chr(10).join(lines[:80]) if lines else 'Список пуст.'}\n\n"
+            f"{footer()}"
+        )
+
+    await call.message.edit_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 К выбору редкости", callback_data="admin:cars_menu")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
             ]
         ),
         parse_mode="HTML",
