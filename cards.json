@@ -700,7 +700,7 @@
                                     "name_en":  "Porsche Taycan Turbo S",
                                     "rarity":  "Epic",
                                     "image":  "",
-                                    "sticker_id":  "",
+                                    "sticker_id":  "CAACAgIAAxkDAAIKi2mdztug75qhw_BWET6XaiXWxGIKAALllQACjiPxSFU1_mEPhTnjOgQ",
                                     "sell_price":  149000
                                 },
     "bmw_m5_cs":  {
@@ -708,7 +708,7 @@
                        "name_en":  "BMW M5 CS",
                        "rarity":  "Epic",
                        "image":  "",
-                       "sticker_id":  "",
+                       "sticker_id":  "CAACAgIAAxkDAAIKj2mdz8FlfrvWucMCFvH--u1EslgaAAL1lQACjiPxSJah3OOrCkmGOgQ",
                        "sell_price":  128000
                    },
     "aston_martin_valkyrie":  {
@@ -716,7 +716,7 @@
                                     "name_en":  "Aston Martin Valkyrie",
                                     "rarity":  "Legendary",
                                     "image":  "",
-                                    "sticker_id":  "",
+                                    "sticker_id":  "CAACAgIAAxkDAAIKk2md0CksxknjzzkQ-eTtmRMM8BSvAAL8lQACjiPxSOXMzBibtJjiOgQ",
                                     "sell_price":  2600000
                                 },
     "mercedes_amg_one":  {
@@ -724,7 +724,7 @@
                               "name_en":  "Mercedes-AMG ONE",
                               "rarity":  "Legendary",
                               "image":  "",
-                              "sticker_id":  "",
+                              "sticker_id":  "CAACAgIAAxkDAAIKl2md0MDKn_UzknSm_oKSy3l6EGa5AAIIlgACjiPxSKo-4r-NwNkLOgQ",
                               "sell_price":  2300000
                           }
 }
