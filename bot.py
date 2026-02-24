@@ -227,6 +227,17 @@ XP_NOTIFY_COOLDOWN_SECONDS = int(os.getenv("XP_NOTIFY_COOLDOWN_SECONDS", "10"))
 XP_NOTIFY_LAST_TS = {}
 DUPLICATE_PITY_THRESHOLD = int(os.getenv("DUPLICATE_PITY_THRESHOLD", "5"))
 
+FAST_TAP_DAILY_LIMIT = int(os.getenv("FAST_TAP_DAILY_LIMIT", "3"))
+FAST_TAP_WINDOW_SECONDS = int(os.getenv("FAST_TAP_WINDOW_SECONDS", "60"))
+FAST_TAP_REWARD_COINS = int(os.getenv("FAST_TAP_REWARD_COINS", "2500"))
+FAST_TAP_REWARD_XP = int(os.getenv("FAST_TAP_REWARD_XP", "15"))
+FAST_TAP_START_HOUR = int(os.getenv("FAST_TAP_START_HOUR", "8"))
+FAST_TAP_END_HOUR = int(os.getenv("FAST_TAP_END_HOUR", "24"))
+FAST_TAP_SCHEDULER_TICK_SECONDS = int(os.getenv("FAST_TAP_SCHEDULER_TICK_SECONDS", "20"))
+FAST_TAP_ACTIVE_ROUNDS = {}  # chat_id -> {round_id, message_id, expires_at, winner_id}
+FAST_TAP_DAILY_COUNTER = {}  # (chat_id, day_key) -> count
+FAST_TAP_DAILY_SCHEDULE = {}  # (chat_id, local_day_key) -> {"slots": [sec], "launched": set()}
+
 # =========================
 # RARITY DRAW
 # =========================
@@ -416,6 +427,164 @@ def clear_admin_pending_states(user_id: int):
     ADMIN_USER_FIND_PENDING.discard(user_id)
     ADMIN_USER_EDIT_PENDING.pop(user_id, None)
     ADMIN_DUPLICATE_PITY_PENDING.discard(user_id)
+
+
+def get_fast_tap_today_count(chat_id: int) -> int:
+    return int(FAST_TAP_DAILY_COUNTER.get((int(chat_id), current_day_key()), 0))
+
+
+def can_launch_fast_tap(chat_id: int):
+    today_count = get_fast_tap_today_count(chat_id)
+    if today_count >= max(1, FAST_TAP_DAILY_LIMIT):
+        return False, today_count
+    return True, today_count
+
+
+async def close_fast_tap_round_later(chat_id: int, round_id: str):
+    await asyncio.sleep(max(1, FAST_TAP_WINDOW_SECONDS))
+
+    active = FAST_TAP_ACTIVE_ROUNDS.get(chat_id)
+    if not active or active.get("round_id") != round_id:
+        return
+
+    if active.get("winner_id") is not None:
+        FAST_TAP_ACTIVE_ROUNDS.pop(chat_id, None)
+        return
+
+    message_id = active.get("message_id")
+    FAST_TAP_ACTIVE_ROUNDS.pop(chat_id, None)
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=(
+                f"{header()}\n\n"
+                "⌛ <b>Раунд завершён</b>\n\n"
+                f"Никто не нажал кнопку за {max(1, FAST_TAP_WINDOW_SECONDS // 60)} мин.\n\n"
+                f"{footer()}"
+            ),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+
+async def launch_fast_tap_round(chat_id: int):
+    chat_id = int(chat_id)
+
+    active = FAST_TAP_ACTIVE_ROUNDS.get(chat_id)
+    if active and active.get("expires_at", 0) > time.time() and active.get("winner_id") is None:
+        return False, "already_active"
+
+    can_launch, today_count = can_launch_fast_tap(chat_id)
+    if not can_launch:
+        return False, "daily_limit"
+
+    round_id = f"{int(time.time() * 1000)}{random.randint(100, 999)}"
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⚡ ЖМИ", callback_data=f"fasttap:click:{chat_id}:{round_id}")]
+        ]
+    )
+
+    msg = await bot.send_message(
+        chat_id,
+        f"{header()}\n\n"
+        "🚨 <b>БЫСТРЫЙ РАУНД</b>\n\n"
+        "Кто первый нажмёт кнопку — заберёт награду!\n\n"
+        f"🎁 Приз: +{FAST_TAP_REWARD_COINS} Coins и +{FAST_TAP_REWARD_XP} XP\n"
+        "⏳ Время: 1 минута\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+
+    FAST_TAP_DAILY_COUNTER[(chat_id, current_day_key())] = today_count + 1
+    FAST_TAP_ACTIVE_ROUNDS[chat_id] = {
+        "round_id": round_id,
+        "message_id": msg.message_id,
+        "expires_at": time.time() + max(1, FAST_TAP_WINDOW_SECONDS),
+        "winner_id": None,
+    }
+    asyncio.create_task(close_fast_tap_round_later(chat_id, round_id))
+    return True, "ok"
+
+
+def _fast_tap_local_now():
+    return datetime.now()
+
+
+def _fast_tap_local_day_key():
+    return _fast_tap_local_now().date().isoformat()
+
+
+def _fast_tap_window_bounds_seconds():
+    start = max(0, min(23, int(FAST_TAP_START_HOUR))) * 3600
+    end_hour = int(FAST_TAP_END_HOUR)
+    end = max(start + 1, min(24, max(1, end_hour))) * 3600
+    return start, end
+
+
+def get_fast_tap_schedule(chat_id: int, day_key: str):
+    key = (int(chat_id), str(day_key))
+    schedule = FAST_TAP_DAILY_SCHEDULE.get(key)
+    if schedule:
+        return schedule
+
+    start_sec, end_sec = _fast_tap_window_bounds_seconds()
+    window = max(1, end_sec - start_sec)
+    slots_count = max(1, int(FAST_TAP_DAILY_LIMIT))
+
+    if slots_count >= window:
+        offsets = list(range(window))
+    else:
+        offsets = random.sample(range(window), k=slots_count)
+
+    slots = sorted(start_sec + offset for offset in offsets)
+    schedule = {"slots": slots, "launched": set()}
+    FAST_TAP_DAILY_SCHEDULE[key] = schedule
+    return schedule
+
+
+def _fast_tap_cleanup_old_day_data(current_local_day_key: str):
+    keys_to_delete = [key for key in FAST_TAP_DAILY_SCHEDULE.keys() if key[1] != current_local_day_key]
+    for key in keys_to_delete:
+        FAST_TAP_DAILY_SCHEDULE.pop(key, None)
+
+
+async def fast_tap_scheduler_loop():
+    while True:
+        try:
+            now = _fast_tap_local_now()
+            day_key = now.date().isoformat()
+            _fast_tap_cleanup_old_day_data(day_key)
+
+            start_sec, end_sec = _fast_tap_window_bounds_seconds()
+            sec_of_day = (now.hour * 3600) + (now.minute * 60) + now.second
+            if sec_of_day < start_sec or sec_of_day >= end_sec:
+                await asyncio.sleep(max(5, FAST_TAP_SCHEDULER_TICK_SECONDS))
+                continue
+
+            for chat_id in get_all_group_chat_ids():
+                active = FAST_TAP_ACTIVE_ROUNDS.get(chat_id)
+                if active and active.get("expires_at", 0) > time.time() and active.get("winner_id") is None:
+                    continue
+
+                schedule = get_fast_tap_schedule(chat_id, day_key)
+                for index, slot_sec in enumerate(schedule["slots"]):
+                    if index in schedule["launched"]:
+                        continue
+                    if sec_of_day >= slot_sec:
+                        ok, reason = await launch_fast_tap_round(chat_id)
+                        if ok:
+                            schedule["launched"].add(index)
+                        elif reason == "daily_limit":
+                            schedule["launched"].add(index)
+                        break
+        except Exception as e:
+            logger.error("fast_tap_scheduler_loop error: %s", e)
+
+        await asyncio.sleep(max(5, FAST_TAP_SCHEDULER_TICK_SECONDS))
 
 
 def main_menu_kb(user_id: int = None):
@@ -2186,6 +2355,7 @@ async def admin_panel(call: CallbackQuery):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
@@ -2227,6 +2397,7 @@ async def admin_command(message: Message):
             [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
             [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
+            [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
@@ -2472,6 +2643,45 @@ async def admin_duplicate_pity_prompt(call: CallbackQuery):
             ]
         ),
         parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "admin:fast_tap_menu")
+async def admin_fast_tap_menu(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        return
+
+    groups = get_all_group_chat_ids()
+    now = _fast_tap_local_now()
+    start_hour = max(0, min(23, int(FAST_TAP_START_HOUR)))
+    end_hour = min(24, max(start_hour + 1, int(FAST_TAP_END_HOUR)))
+    in_window = start_hour <= now.hour < end_hour
+
+    text = (
+        f"{header()}\n\n"
+        "⚡ <b>Быстрый раунд (авто)</b>\n\n"
+        f"Режим: <b>{'активен' if in_window else 'вне окна запусков'}</b>\n"
+        f"Окно запусков: <b>{start_hour:02d}:00–{end_hour:02d}:00</b>\n"
+        f"Лимит на группу: <b>{FAST_TAP_DAILY_LIMIT}/день</b>\n"
+        f"Длительность раунда: <b>{max(1, FAST_TAP_WINDOW_SECONDS // 60)} мин</b>\n"
+        f"Награда: <b>+{FAST_TAP_REWARD_COINS} Coins</b> и <b>+{FAST_TAP_REWARD_XP} XP</b>\n"
+        f"Групп в базе: <b>{len(groups)}</b>\n\n"
+        "Запуск происходит автоматически и случайно в течение дня.\n"
+        "Ручной запуск отключён.\n\n"
+        f"{footer()}"
+    )
+
+    await call.message.edit_text(
+        text,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔄 Обновить", callback_data="admin:fast_tap_menu")],
+                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
+            ]
+        ),
     )
     await call.answer()
 
@@ -3792,6 +4002,65 @@ async def top_command(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
+@dp.callback_query(F.data.startswith("fasttap:click:"))
+async def fast_tap_click(call: CallbackQuery):
+    parts = call.data.split(":")
+    if len(parts) != 4:
+        await call.answer("❌ Раунд не найден", show_alert=True)
+        return
+
+    chat_id_raw = parts[2]
+    round_id = parts[3]
+    if not chat_id_raw.lstrip("-").isdigit():
+        await call.answer("❌ Раунд не найден", show_alert=True)
+        return
+
+    chat_id = int(chat_id_raw)
+    active = FAST_TAP_ACTIVE_ROUNDS.get(chat_id)
+    if not active or active.get("round_id") != round_id:
+        await call.answer("⌛ Этот раунд уже завершён", show_alert=True)
+        return
+
+    if active.get("expires_at", 0) <= time.time():
+        await call.answer("⌛ Время вышло", show_alert=True)
+        return
+
+    if active.get("winner_id") is not None:
+        await call.answer("🏁 Победитель уже определён", show_alert=True)
+        return
+
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("Сначала открой бота в ЛС и нажми /start", show_alert=True)
+        return
+
+    active["winner_id"] = call.from_user.id
+    add_coins(call.from_user.id, FAST_TAP_REWARD_COINS, source="fast_tap_win")
+    await apply_xp_amount_progress(
+        call.from_user.id,
+        FAST_TAP_REWARD_XP,
+        notify_message=call.message,
+        source="fast_tap_win",
+    )
+
+    winner_name = call.from_user.first_name or "Игрок"
+    try:
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "🏆 <b>ПОБЕДА В БЫСТРОМ РАУНДЕ</b>\n\n"
+            f"{winner_name}, ты самый быстрый!\n\n"
+            f"💰 Награда: +{FAST_TAP_REWARD_COINS} Coins\n"
+            f"⭐ Опыт: +{FAST_TAP_REWARD_XP} XP\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+    FAST_TAP_ACTIVE_ROUNDS.pop(chat_id, None)
+    await call.answer("✅ Ты первый!", show_alert=True)
+
+
 @dp.message(F.chat.type != "private", Command("topweek"))
 async def top_week_command(message: Message):
     await process_group_weekly_rewards(message.chat.id)
@@ -3839,6 +4108,7 @@ async def balance_command(message: Message):
 # =========================
 
 async def main():
+    fast_tap_scheduler_task = None
     try:
         init_db()
         global BOT_USERNAME
@@ -3867,6 +4137,14 @@ async def main():
         
         logger.info("Bot commands set")
         logger.info("Starting polling...")
+
+        fast_tap_scheduler_task = asyncio.create_task(fast_tap_scheduler_loop())
+        logger.info(
+            "Fast tap scheduler started: window=%02d:00-%02d:00, daily_limit=%s",
+            max(0, min(23, int(FAST_TAP_START_HOUR))),
+            min(24, max(max(0, min(23, int(FAST_TAP_START_HOUR))) + 1, int(FAST_TAP_END_HOUR))),
+            max(1, FAST_TAP_DAILY_LIMIT),
+        )
         
         while True:
             try:
@@ -3881,6 +4159,12 @@ async def main():
     except Exception as e:
         logger.error("Fatal startup error: %s", e, exc_info=True)
     finally:
+        if fast_tap_scheduler_task:
+            fast_tap_scheduler_task.cancel()
+            try:
+                await fast_tap_scheduler_task
+            except Exception:
+                pass
         await bot.session.close()
         logger.info("Bot stopped")
 
