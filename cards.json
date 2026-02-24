@@ -646,5 +646,85 @@
                        "image":  "",
                        "sticker_id":  "CAACAgIAAxkDAAIIymmcIwAB1iIZFlnm2qTQ1AM4Tah7IAACTYgAAvaU4UhzvzwFg-B9PjoE",
                        "sell_price":  1350000
-                   }
+                   },
+    "renault_logan":  {
+                           "name_ru":  "Рено Логан",
+                           "name_en":  "Renault Logan",
+                           "rarity":  "Common",
+                           "image":  "",
+                           "sticker_id":  "",
+                           "sell_price":  14000
+                       },
+    "skoda_rapid":  {
+                         "name_ru":  "Шкода Рапид",
+                         "name_en":  "Skoda Rapid",
+                         "rarity":  "Common",
+                         "image":  "",
+                         "sticker_id":  "",
+                         "sell_price":  17000
+                     },
+    "peugeot_308":  {
+                        "name_ru":  "Пежо 308",
+                        "name_en":  "Peugeot 308",
+                        "rarity":  "Common",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  20000
+                    },
+    "toyota_chr":  {
+                        "name_ru":  "Тойота C-HR",
+                        "name_en":  "Toyota C-HR",
+                        "rarity":  "Rare",
+                        "image":  "",
+                        "sticker_id":  "",
+                        "sell_price":  39000
+                    },
+    "bmw_x3":  {
+                   "name_ru":  "БМВ X3",
+                   "name_en":  "BMW X3",
+                   "rarity":  "Rare",
+                   "image":  "",
+                   "sticker_id":  "",
+                   "sell_price":  56000
+               },
+    "audi_q5":  {
+                    "name_ru":  "Ауди Q5",
+                    "name_en":  "Audi Q5",
+                    "rarity":  "Rare",
+                    "image":  "",
+                    "sticker_id":  "",
+                    "sell_price":  58000
+                },
+    "porsche_taycan_turbo_s":  {
+                                    "name_ru":  "Порше Тайкан Turbo S",
+                                    "name_en":  "Porsche Taycan Turbo S",
+                                    "rarity":  "Epic",
+                                    "image":  "",
+                                    "sticker_id":  "",
+                                    "sell_price":  149000
+                                },
+    "bmw_m5_cs":  {
+                       "name_ru":  "БМВ M5 CS",
+                       "name_en":  "BMW M5 CS",
+                       "rarity":  "Epic",
+                       "image":  "",
+                       "sticker_id":  "",
+                       "sell_price":  128000
+                   },
+    "aston_martin_valkyrie":  {
+                                    "name_ru":  "Астон Мартин Валькирия",
+                                    "name_en":  "Aston Martin Valkyrie",
+                                    "rarity":  "Legendary",
+                                    "image":  "",
+                                    "sticker_id":  "",
+                                    "sell_price":  2600000
+                                },
+    "mercedes_amg_one":  {
+                              "name_ru":  "Мерседес-AMG ONE",
+                              "name_en":  "Mercedes-AMG ONE",
+                              "rarity":  "Legendary",
+                              "image":  "",
+                              "sticker_id":  "",
+                              "sell_price":  2300000
+                          }
 }
