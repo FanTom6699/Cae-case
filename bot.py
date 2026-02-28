@@ -209,14 +209,14 @@ GLOBAL_WEEKLY_REWARDS = [100000, 70000, 50000]
 XP_GAIN_BY_RARITY = {
     "Common": int(os.getenv("XP_COMMON", "15")),
     "Rare": int(os.getenv("XP_RARE", "35")),
-    "Epic": int(os.getenv("XP_EPIC", "90")),
+    "Epic": int(os.getenv("XP_EPIC", "63")),  # -30% XP за Epic
     "Legendary": int(os.getenv("XP_LEGENDARY", "220")),
 }
 DUPLICATE_REWARD_MULTIPLIER = {
-    "Common": float(os.getenv("DUPLICATE_MULT_COMMON", "0.35")),
-    "Rare": float(os.getenv("DUPLICATE_MULT_RARE", "0.40")),
-    "Epic": float(os.getenv("DUPLICATE_MULT_EPIC", "0.45")),
-    "Legendary": float(os.getenv("DUPLICATE_MULT_LEGENDARY", "0.50")),
+    "Common": float(os.getenv("DUPLICATE_MULT_COMMON", "0.21")),  # -40%
+    "Rare": float(os.getenv("DUPLICATE_MULT_RARE", "0.24")),      # -40%
+    "Epic": float(os.getenv("DUPLICATE_MULT_EPIC", "0.27")),      # -40%
+    "Legendary": float(os.getenv("DUPLICATE_MULT_LEGENDARY", "0.30")), # -40%
 }
 LEVEL_BASE_XP = int(os.getenv("LEVEL_BASE_XP", "100"))
 LEVEL_ROUND_STEP = int(os.getenv("LEVEL_ROUND_STEP", "5"))
