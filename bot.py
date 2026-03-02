@@ -2020,12 +2020,23 @@ async def races_menu(call: CallbackQuery):
             f"({RARITY_EMOJI.get(selected_car.get('rarity', ''), '❓')} {RARITY_RU.get(selected_car.get('rarity', ''), selected_car.get('rarity', '—'))})"
         )
         selected_stats_line = (
-            f"⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>{selected_profile['speed']}/{selected_profile['accel']}/{selected_profile['grip']}/{selected_profile['reliability']}</b>"
-            f" | LVL <b>{selected_profile['tune_level']}</b>"
+            "⚙️ Характеристики:\n"
+            f"• ⚡ Скорость: <b>{selected_profile['speed']}</b>\n"
+            f"• 🚀 Разгон: <b>{selected_profile['accel']}</b>\n"
+            f"• 🛞 Сцепление: <b>{selected_profile['grip']}</b>\n"
+            f"• 🛡 Надёжность: <b>{selected_profile['reliability']}</b>\n"
+            f"• 📈 LVL тюнинга: <b>{selected_profile['tune_level']}</b>"
         )
     else:
         selected_line = "🚘 Выбрана: <b>не выбрана</b>"
-        selected_stats_line = "⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>—</b>"
+        selected_stats_line = (
+            "⚙️ Характеристики:\n"
+            "• ⚡ Скорость: <b>—</b>\n"
+            "• 🚀 Разгон: <b>—</b>\n"
+            "• 🛞 Сцепление: <b>—</b>\n"
+            "• 🛡 Надёжность: <b>—</b>\n"
+            "• 📈 LVL тюнинга: <b>—</b>"
+        )
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -2254,8 +2265,12 @@ async def race_pick_car_select(call: CallbackQuery):
         f"({RARITY_EMOJI.get(car.get('rarity', ''), '❓')} {RARITY_RU.get(car.get('rarity', ''), car.get('rarity', '—'))})"
     )
     selected_stats_line = (
-        f"⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>{profile['speed']}/{profile['accel']}/{profile['grip']}/{profile['reliability']}</b>"
-        f" | LVL <b>{profile['tune_level']}</b>"
+        "⚙️ Характеристики:\n"
+        f"• ⚡ Скорость: <b>{profile['speed']}</b>\n"
+        f"• 🚀 Разгон: <b>{profile['accel']}</b>\n"
+        f"• 🛞 Сцепление: <b>{profile['grip']}</b>\n"
+        f"• 🛡 Надёжность: <b>{profile['reliability']}</b>\n"
+        f"• 📈 LVL тюнинга: <b>{profile['tune_level']}</b>"
     )
 
     await call.message.edit_text(
