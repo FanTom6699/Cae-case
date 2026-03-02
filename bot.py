@@ -78,6 +78,12 @@ from database import (
     get_all_group_chat_ids,
     get_admin_summary_stats,
 )
+from races import (
+    build_car_stats,
+    make_bot_opponent,
+    render_race_frame,
+    simulate_race,
+)
 
 # =========================
 # INIT
@@ -91,6 +97,8 @@ LOG_PATH = os.getenv("LOG_PATH", "bot.log")
 LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "1"))
 FEEDBACK_CHAT_ID = int(os.getenv("FEEDBACK_CHAT_ID", "-1003802493555"))
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "5658493362"))
+RACES_TEST_USER_ID = int(os.getenv("RACES_TEST_USER_ID", str(ADMIN_USER_ID)))
+RACES_ENABLED_FOR_ALL = os.getenv("RACES_ENABLED_FOR_ALL", "0") == "1"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -237,6 +245,7 @@ FAST_TAP_SCHEDULER_TICK_SECONDS = int(os.getenv("FAST_TAP_SCHEDULER_TICK_SECONDS
 FAST_TAP_ACTIVE_ROUNDS = {}  # chat_id -> {round_id, message_id, expires_at, winner_id}
 FAST_TAP_DAILY_COUNTER = {}  # (chat_id, day_key) -> count
 FAST_TAP_DAILY_SCHEDULE = {}  # (chat_id, local_day_key) -> {"slots": [sec], "launched": set()}
+RACE_TICK_DELAY_SECONDS = float(os.getenv("RACE_TICK_DELAY_SECONDS", "1.0"))
 
 # =========================
 # RARITY DRAW
@@ -420,6 +429,14 @@ def is_owner(user_id: int) -> bool:
     return user_id == ADMIN_USER_ID
 
 
+def is_races_tester(user_id: int) -> bool:
+    return user_id == RACES_TEST_USER_ID
+
+
+def can_access_races(user_id: int) -> bool:
+    return RACES_ENABLED_FOR_ALL or is_races_tester(user_id)
+
+
 def clear_admin_pending_states(user_id: int):
     ADMIN_BROADCAST_PENDING.pop(user_id, None)
     ADMIN_PROFILE_LOOKUP_PENDING.discard(user_id)
@@ -588,6 +605,8 @@ async def fast_tap_scheduler_loop():
 
 
 def main_menu_kb(user_id: int = None):
+    has_races_access = user_id is not None and can_access_races(user_id)
+
     kb = [
         [
             InlineKeyboardButton(text="🎁 Бесплатный кейс", callback_data="menu:free"),
@@ -601,7 +620,12 @@ def main_menu_kb(user_id: int = None):
             InlineKeyboardButton(text="👤 Профиль", callback_data="menu:profile"),
             InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats"),
         ],
-        [InlineKeyboardButton(text="📚 Дополнительно", callback_data="menu:more")],
+        [InlineKeyboardButton(text="📚 Дополнительно", callback_data="menu:more")]
+        if not has_races_access
+        else [
+            InlineKeyboardButton(text="🏁 Гонки", callback_data="menu:races"),
+            InlineKeyboardButton(text="📚 Дополнительно", callback_data="menu:more"),
+        ],
     ]
 
     if user_id is not None and is_owner(user_id):
@@ -1615,6 +1639,156 @@ async def more_menu(call: CallbackQuery):
     await call.answer()
 
 
+@dp.callback_query(F.data == "menu:races")
+async def races_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "🏁 Гонки доступны только в ЛС\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    cars = get_user_garage(call.from_user.id)
+    cars_count = len(cars)
+    race_ready_text = "✅ Готов к заездам" if cars_count > 0 else "⚠️ Нужна хотя бы 1 машина"
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🏁 <b>Гонки</b>\n\n"
+        "Тестовое меню режима гонок.\n"
+        "Пока доступны базовые разделы.\n\n"
+        f"🚗 Машин в гараже: <b>{cars_count}</b>\n"
+        f"{race_ready_text}\n\n"
+        "🎯 Режим скрыт для остальных игроков.\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🏁 Гонка", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
+                [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
+                [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data == "races:vs_bot")
+async def race_vs_bot(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    cars = get_user_garage(call.from_user.id)
+    if not cars:
+        await call.answer("🚗 Гараж пуст. Открой кейс, чтобы начать гонки", show_alert=True)
+        return
+
+    selected_car = random.choice(cars)
+    card_id = selected_car.get("name", "")
+    rarity = selected_car.get("rarity", "Common")
+    card = CARDS.get(card_id, {})
+    player_car_name = card.get("name_ru") or card_id or "Твоя машина"
+
+    player_stats = build_car_stats(card_id, rarity)
+    opponent_name, race_class, opponent_stats = make_bot_opponent(rarity)
+    race_result = simulate_race(player_stats, opponent_stats, ticks_total=9)
+
+    frames = race_result["frames"]
+    if not frames:
+        await call.answer("⚠️ Не удалось запустить гонку", show_alert=True)
+        return
+
+    await call.answer("🏁 Поехали!")
+
+    for idx, frame in enumerate(frames):
+        frame_text = render_race_frame(
+            player_car_name=player_car_name,
+            opponent_name=opponent_name,
+            player_progress=frame["player_progress"],
+            opponent_progress=frame["opponent_progress"],
+            race_class=race_class,
+            tick=frame["tick"],
+            ticks_total=len(frames),
+        )
+        race_text = (
+            f"{header()}\n\n"
+            f"{frame_text}\n\n"
+            f"{footer()}"
+        )
+
+        try:
+            await call.message.edit_text(
+                race_text,
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text="⏹ Прервать", callback_data="menu:races")],
+                    ]
+                ),
+            )
+        except TelegramBadRequest:
+            pass
+
+        if idx < len(frames) - 1:
+            await asyncio.sleep(max(0.4, RACE_TICK_DELAY_SECONDS))
+
+    winner = race_result["winner"]
+    if winner == "player":
+        result_line = "🏆 <b>Победа!</b> Ты приехал первым."
+    elif winner == "opponent":
+        result_line = "😵 <b>Поражение.</b> Бот оказался быстрее."
+    else:
+        result_line = "🤝 <b>Ничья.</b> Идеально ровный финиш."
+
+    final_text = (
+        f"{header()}\n\n"
+        "🏁 <b>Гонка завершена</b>\n\n"
+        f"🚘 Твоя машина: <b>{player_car_name}</b>\n"
+        f"🤖 Соперник: <b>{opponent_name}</b>\n"
+        f"📊 Класс заезда: <b>{race_class}</b>\n\n"
+        f"{result_line}\n\n"
+        "🎯 Режим тестовый: награды пока отключены.\n\n"
+        f"{footer()}"
+    )
+
+    await call.message.edit_text(
+        final_text,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔁 Ещё заезд", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+                [InlineKeyboardButton(text="🏠 К меню", callback_data="start")],
+            ]
+        ),
+    )
+
+
 @dp.message(Command("stats"))
 async def stats_command(message: Message):
     await send_stats(message)
@@ -2181,7 +2355,7 @@ async def feedback_message(message: Message):
             "❌ Бот не добавлен в группу отзывов.\n"
             "Добавь бота в группу, чтобы отзывы доходили.\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(sender.id),
             parse_mode="HTML",
         )
         return
@@ -2205,7 +2379,7 @@ async def feedback_message(message: Message):
             f"{header()}\n\n"
             "✅ Спасибо! Отзыв отправлен.\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(sender.id),
             parse_mode="HTML",
         )
         logger.info(
@@ -2229,7 +2403,7 @@ async def feedback_message(message: Message):
                     f"{header()}\n\n"
                     "✅ Спасибо! Отзыв отправлен.\n\n"
                     f"{footer()}",
-                    reply_markup=main_menu_kb(),
+                    reply_markup=main_menu_kb(sender.id),
                     parse_mode="HTML",
                 )
                 logger.info(
@@ -2256,7 +2430,7 @@ async def feedback_message(message: Message):
             f"{header()}\n\n"
             "❌ Не удалось отправить отзыв. Попробуй позже.\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(sender.id),
             parse_mode="HTML",
         )
     except Exception as exc:
@@ -2269,7 +2443,7 @@ async def feedback_message(message: Message):
             f"{header()}\n\n"
             "❌ Не удалось отправить отзыв. Попробуй позже.\n\n"
             f"{footer()}",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(sender.id),
             parse_mode="HTML",
         )
 
