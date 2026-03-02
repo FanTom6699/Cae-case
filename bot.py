@@ -1467,8 +1467,15 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
 
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     lines = []
-    for i, row in enumerate(top, start=1):
-        lines.append(line_format(i, row, medals))
+    has_real_race_wins = True
+    if stat_type == "race_wins":
+        has_real_race_wins = any(int(row.get("race_wins", 0)) > 0 for row in top)
+
+    if stat_type == "race_wins" and not has_real_race_wins:
+        lines = []
+    else:
+        for i, row in enumerate(top, start=1):
+            lines.append(line_format(i, row, medals))
 
     viewer = get_user(call.from_user.id)
     viewer_level_line = ""
