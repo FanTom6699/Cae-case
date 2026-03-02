@@ -490,9 +490,9 @@ async def launch_fast_tap_round(chat_id: int):
     msg = await bot.send_message(
         chat_id,
         f"{header()}\n\n"
-        "🚨 <b>БЫСТРЫЙ РАУНД</b>\n\n"
+        "🚨 <b>Быстрый раунд</b>\n\n"
         "Кто первый нажмёт кнопку — заберёт награду!\n\n"
-        f"🎁 Приз: +{FAST_TAP_REWARD_COINS} Coins и +{FAST_TAP_REWARD_XP} XP\n"
+        f"🎁 Приз: +{fmt_coins(FAST_TAP_REWARD_COINS)} и +{fmt_xp(FAST_TAP_REWARD_XP)}\n"
         "⏳ Время: 1 минута\n\n"
         f"{footer()}",
         parse_mode="HTML",
@@ -620,6 +620,20 @@ def format_timedelta(td: timedelta):
     return f"{h} ч {m} мин"
 
 
+def format_number(value):
+    n = int(value or 0)
+    sign = "-" if n < 0 else ""
+    return f"{sign}{abs(n):,}".replace(",", " ")
+
+
+def fmt_coins(value):
+    return f"{format_number(value)} Coins"
+
+
+def fmt_xp(value):
+    return f"{format_number(value)} XP"
+
+
 def current_day_key():
     return datetime.utcnow().date().isoformat()
 
@@ -713,12 +727,12 @@ async def apply_xp_amount_progress(user_id: int, xp_gain: int, notify_message: M
         next_level_line = (
             "🎯 До следующего уровня: <b>MAX</b>\n"
             if after_level >= max(1, MAX_LEVEL)
-            else f"🎯 До следующего уровня: {xp_to_next_level} XP\n"
+            else f"🎯 До следующего уровня: {fmt_xp(xp_to_next_level)}\n"
         )
         await notify_message.answer(
             f"{header()}\n\n"
             "🏅 <b>Новый уровень!</b>\n\n"
-            f"⭐ Опыт: {after_xp} XP\n"
+            f"⭐ Опыт: {fmt_xp(after_xp)}\n"
             f"📈 Уровень: <b>{before_level} → {after_level}</b>\n"
             f"{next_level_line}\n"
             f"{footer()}",
@@ -747,7 +761,7 @@ async def apply_xp_amount_progress(user_id: int, xp_gain: int, notify_message: M
                 f"{header()}\n\n"
                 "🎁 <b>Награда за круглый уровень!</b>\n\n"
                 f"🏁 Уровни: {rounds_text}\n"
-                f"💰 Награда: +{total_bonus} Coins\n\n"
+                f"💰 Награда: +{fmt_coins(total_bonus)}\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
             )
@@ -775,8 +789,8 @@ async def maybe_notify_daily_available(target: Message, user):
 
     await target.answer(
         f"{header()}\n\n"
-        "📅 <b>Ежедневные задания доступны!</b>\n\n"
-        "Зайди в меню <b>Ежедневные задания</b> и получи награды 💰\n\n"
+        "📅 <b>Ежедневные задания доступны</b>\n\n"
+        "Зайди в раздел <b>Ежедневные задания</b> и забери награды.\n\n"
         f"{footer()}",
         parse_mode="HTML",
     )
@@ -808,7 +822,7 @@ async def maybe_apply_streak_bonus(target: Message, user):
         f"{header()}\n\n"
         "🔥 <b>Ежедневный вход!</b>\n\n"
         f"Серия: <b>{current_streak}</b> дн.\n"
-        f"🎁 Награда: +{reward} Coins\n"
+        f"🎁 Награда: +{fmt_coins(reward)}\n"
         f"🏆 Лучший стрик: {best_streak} дн.\n\n"
         f"{footer()}",
         parse_mode="HTML",
@@ -947,8 +961,8 @@ async def apply_daily_task_progress(user_id: int, task_key: str, amount: int = 1
                 f"{header()}\n\n"
                 "✅ <b>Задание выполнено!</b>\n\n"
                 f"📌 {task['title']}\n"
-                f"🎁 Награда: +{task['reward']} Coins\n\n"
-                f"⭐ Опыт: +{task_xp} XP\n\n"
+                f"🎁 Награда: +{fmt_coins(task['reward'])}\n"
+                f"⭐ Опыт: +{fmt_xp(task_xp)}\n\n"
                 f"{footer()}",
                 parse_mode="HTML",
             )
@@ -1075,7 +1089,7 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['coins']} 💰"
     elif stat_type == "level":
         if call.message.chat.type != "private":
-            await call.answer("❌ Этот рейтинг доступен только в ЛС", show_alert=True)
+            await call.answer("⛔ Доступно только в ЛС", show_alert=True)
             return
         top = get_top_users_by_xp(10)
         title = "🏅 <b>ТОП ПО УРОВНЮ</b>"
@@ -1457,13 +1471,13 @@ async def start(message: Message):
         await message.answer(
             f"{header()}\n\n"
             f"👋 Привет, <b>{message.from_user.first_name}</b>!\n\n"
-            f"🎮 Я игровой бот для сбора редких машин! Открывай кейсы, собирай коллекцию, продавай машины и зарабатывай монеты!\n\n"
+            "🎮 Открывай кейсы, собирай коллекцию машин и прокачивай профиль.\n\n"
             f"🎁 <b>Как начать:</b>\n"
-            f"• Открывай <b>бесплатные кейсы</b> каждые 4 часа\n"
-            f"• Копи монеты и <b>покупай платные кейсы</b>\n"
-            f"• Собирай все машины в <b>гараже</b>\n"
-            f"• Продавай дубликаты и зарабатывай\n\n"
-            f"Выбирай действие ниже и начинай играть!\n\n"
+            "• Открывай <b>бесплатный кейс</b> каждые 4 часа\n"
+            "• Копи Coins и открывай <b>платные кейсы</b>\n"
+            "• Собирай машины в <b>гараже</b>\n"
+            "• Продавай дубликаты и получай Coins\n\n"
+            "Выбирай действие в меню ниже.\n\n"
             f"{footer()}",
             reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
@@ -1472,8 +1486,8 @@ async def start(message: Message):
         # Обычное меню для вернувшихся
         await message.answer(
             f"{header()}\n\n"
-            f"Привет, <b>{message.from_user.first_name}</b>!\n"
-            f"Выбирай действие:\n\n"
+            f"👋 Привет, <b>{message.from_user.first_name}</b>!\n"
+            "Выбирай действие в меню ниже.\n\n"
             f"{footer()}",
             reply_markup=main_menu_kb(message.from_user.id),
             parse_mode="HTML",
@@ -1491,7 +1505,7 @@ async def start(message: Message):
 @dp.callback_query(F.data == "start")
 async def start_menu(call: CallbackQuery):
     if call.message.chat.type != "private":
-        await call.answer("❌ Меню доступно только в ЛС", show_alert=True)
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
         return
     
     # Удаляем предыдущий стикер, если был
@@ -1515,7 +1529,7 @@ async def start_menu(call: CallbackQuery):
     # Просто редактируем текущее сообщение на меню
     await call.message.edit_text(
         f"{header()}\n\n"
-        "Меню\n\n"
+        "🏠 <b>Главное меню</b>\n\n"
         f"{footer()}",
         reply_markup=main_menu_kb(call.from_user.id),
         parse_mode="HTML",
@@ -1548,25 +1562,22 @@ async def help_menu(call: CallbackQuery):
     
     help_text = (
         f"{header()}\n\n"
-        "<b>❓ Помощь</b>\n\n"
+        "❓ <b>Помощь</b>\n\n"
         "<b>📱 Команды:</b>\n"
-        "/start - Главное меню\n"
-        "/stats - Топ игроков\n"
-        "/help - Справка\n\n"
+        "• /start — главное меню\n"
+        "• /stats — топ игроков\n"
+        "• /help — справка\n\n"
         "<b>🔊 Триггеры в группе:</b>\n"
-        "<b>Открыть кейс:</b>\n"
-        "  кейс, case, открыть, open\n"
-        "<b>Баланс:</b>\n"
-        "  баланс, balance, coins\n\n"
-        "<b>💡 Совет:</b>\n"
-        "Все основные функции доступны через меню ниже 👇\n\n"
+        "• Открыть кейс: кейс, case, открыть, open\n"
+        "• Баланс: баланс, balance, coins\n\n"
+        "Все основные функции доступны через меню ниже.\n\n"
         f"{footer()}"
     )
     
     await call.message.edit_text(
         help_text,
         reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 К меню", callback_data="start")]]
         ),
         parse_mode="HTML",
     )
@@ -1590,13 +1601,13 @@ async def more_menu(call: CallbackQuery):
     await call.message.edit_text(
         f"{header()}\n\n"
         "📚 <b>Дополнительно</b>\n\n"
-        "Выбирай раздел:\n\n"
+        "Выбирай нужный раздел:\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="✍️ Отзыв", callback_data="menu:feedback")],
                 [InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help")],
-                [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
+                [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
             ]
         ),
         parse_mode="HTML",
@@ -1613,18 +1624,15 @@ async def stats_command(message: Message):
 async def help_command(message: Message):
     help_text = (
         f"{header()}\n\n"
-        "<b>❓ Помощь</b>\n\n"
+        "❓ <b>Помощь</b>\n\n"
         "<b>📱 Команды:</b>\n"
-        "/start - Главное меню\n"
-        "/stats - Топ игроков\n"
-        "/help - Справка\n\n"
+        "• /start — главное меню\n"
+        "• /stats — топ игроков\n"
+        "• /help — справка\n\n"
         "<b>🔊 Триггеры в группе:</b>\n"
-        "<b>Открыть кейс:</b>\n"
-        "  кейс, case, открыть, open\n"
-        "<b>Баланс:</b>\n"
-        "  баланс, balance, coins\n\n"
-        "<b>💡 Совет:</b>\n"
-        "Все основные функции доступны через меню 👇\n\n"
+        "• Открыть кейс: кейс, case, открыть, open\n"
+        "• Баланс: баланс, balance, coins\n\n"
+        "Все основные функции доступны через меню.\n\n"
         f"{footer()}"
     )
     await message.answer(help_text, parse_mode="HTML")
@@ -2273,7 +2281,7 @@ async def feedback_message(message: Message):
 async def profile_menu(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
 
     rarity_counts = get_user_rarity_counts(call.from_user.id)
@@ -2308,8 +2316,8 @@ async def profile_menu(call: CallbackQuery):
         "👤 <b>Профиль</b>\n\n"
         f"🪪 <b>Ник:</b> {nick}\n"
         f"🆔 <b>ID:</b> <code>{user['user_id']}</code>\n"
-        f"💰 <b>Баланс:</b> {user['coins']} Coins\n"
-        f"⭐ <b>Опыт:</b> {xp_total} XP\n"
+        f"💰 <b>Баланс:</b> {fmt_coins(user['coins'])}\n"
+        f"⭐ <b>Опыт:</b> {fmt_xp(xp_total)}\n"
         f"🏅 <b>Уровень:</b> {level}\n"
         f"🎯 <b>До следующего:</b> {next_level_text}\n"
         f"📊 <b>Прогресс:</b> {xp_bar_text}\n"
@@ -2344,7 +2352,7 @@ async def profile_menu(call: CallbackQuery):
 @dp.callback_query(F.data == "menu:admin")
 async def admin_panel(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2383,7 +2391,7 @@ async def admin_command(message: Message):
     if not is_owner(message.from_user.id):
         await message.answer(
             f"{header()}\n\n"
-            "⛔ Доступ запрещен\n\n"
+            "⛔ Доступ запрещён\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -2422,7 +2430,7 @@ async def admin_command(message: Message):
 @dp.callback_query(F.data == "admin:stats")
 async def admin_stats(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     stats = get_admin_summary_stats()
@@ -2449,22 +2457,22 @@ async def admin_stats(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:xp_stats")
 async def admin_xp_stats(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     xp_stats = get_xp_analytics(7)
     source_lines = []
     for row in xp_stats.get("top_sources", []):
-        source_lines.append(f"• <b>{row['source']}</b>: {row['amount']} XP")
+        source_lines.append(f"• <b>{row['source']}</b>: {fmt_xp(row['amount'])}")
 
     await call.message.edit_text(
         f"{header()}\n\n"
         "⭐ <b>XP-аналитика (7 дней)</b>\n\n"
-        f"👥 Пользователей: <b>{xp_stats['users_count']}</b>\n"
-        f"🧮 Общий XP: <b>{xp_stats['total_xp']}</b>\n"
-        f"📊 Средний XP: <b>{xp_stats['avg_xp']:.1f}</b>\n"
-        f"🏆 Максимальный XP: <b>{xp_stats['max_xp']}</b>\n"
-        f"📈 Начислено за 7 дней: <b>{xp_stats['xp_last_days']}</b> XP\n\n"
+        f"👥 Пользователей: <b>{format_number(xp_stats['users_count'])}</b>\n"
+        f"🧮 Общий XP: <b>{fmt_xp(xp_stats['total_xp'])}</b>\n"
+        f"📊 Средний XP: <b>{format_number(round(xp_stats['avg_xp']))}</b>\n"
+        f"🏆 Максимальный XP: <b>{fmt_xp(xp_stats['max_xp'])}</b>\n"
+        f"📈 Начислено за 7 дней: <b>{fmt_xp(xp_stats['xp_last_days'])}</b>\n\n"
         f"<b>Топ источников XP:</b>\n"
         f"{chr(10).join(source_lines) if source_lines else 'Пока нет данных'}\n\n"
         f"{footer()}",
@@ -2482,19 +2490,19 @@ async def admin_xp_stats(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:economy")
 async def admin_economy_stats(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     eco = get_economy_analytics(7)
-    faucet_lines = [f"• <b>{row['source']}</b>: +{row['amount']} Coins" for row in eco.get("top_faucet_sources", [])]
-    sink_lines = [f"• <b>{row['source']}</b>: -{row['amount']} Coins" for row in eco.get("top_sink_sources", [])]
+    faucet_lines = [f"• <b>{row['source']}</b>: +{fmt_coins(row['amount'])}" for row in eco.get("top_faucet_sources", [])]
+    sink_lines = [f"• <b>{row['source']}</b>: -{fmt_coins(row['amount'])}" for row in eco.get("top_sink_sources", [])]
 
     await call.message.edit_text(
         f"{header()}\n\n"
         "💹 <b>Экономика (7 дней)</b>\n\n"
-        f"🟢 Выдано: <b>+{eco['faucet']}</b> Coins\n"
-        f"🔴 Сожжено: <b>-{eco['sink']}</b> Coins\n"
-        f"⚖️ Чистый баланс: <b>{eco['net']:+}</b> Coins\n\n"
+        f"🟢 Выдано: <b>+{fmt_coins(eco['faucet'])}</b>\n"
+        f"🔴 Сожжено: <b>-{fmt_coins(eco['sink'])}</b>\n"
+        f"⚖️ Чистый баланс: <b>{'+' if int(eco['net']) > 0 else ''}{format_number(eco['net'])} Coins</b>\n\n"
         f"<b>Топ источников выдачи:</b>\n"
         f"{chr(10).join(faucet_lines) if faucet_lines else 'Пока нет данных'}\n\n"
         f"<b>Топ источников списания:</b>\n"
@@ -2514,7 +2522,7 @@ async def admin_economy_stats(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:cars_menu")
 async def admin_cars_menu(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     await call.message.edit_text(
@@ -2543,7 +2551,7 @@ async def admin_cars_menu(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("admin:cars_rarity:"))
 async def admin_cars_by_rarity(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     rarity_slug = call.data.split(":", 2)[2]
@@ -2591,7 +2599,7 @@ async def admin_cars_by_rarity(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:week")
 async def admin_week_status(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     current = current_week_key()
@@ -2624,7 +2632,7 @@ async def admin_week_status(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:duplicate_pity")
 async def admin_duplicate_pity_prompt(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2650,7 +2658,7 @@ async def admin_duplicate_pity_prompt(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:fast_tap_menu")
 async def admin_fast_tap_menu(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     groups = get_all_group_chat_ids()
@@ -2666,7 +2674,7 @@ async def admin_fast_tap_menu(call: CallbackQuery):
         f"Окно запусков: <b>{start_hour:02d}:00–{end_hour:02d}:00</b>\n"
         f"Лимит на группу: <b>{FAST_TAP_DAILY_LIMIT}/день</b>\n"
         f"Длительность раунда: <b>{max(1, FAST_TAP_WINDOW_SECONDS // 60)} мин</b>\n"
-        f"Награда: <b>+{FAST_TAP_REWARD_COINS} Coins</b> и <b>+{FAST_TAP_REWARD_XP} XP</b>\n"
+        f"Награда: <b>+{fmt_coins(FAST_TAP_REWARD_COINS)}</b> и <b>+{fmt_xp(FAST_TAP_REWARD_XP)}</b>\n"
         f"Групп в базе: <b>{len(groups)}</b>\n\n"
         "Запуск происходит автоматически и случайно в течение дня.\n"
         "Ручной запуск отключён.\n\n"
@@ -2689,7 +2697,7 @@ async def admin_fast_tap_menu(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:broadcast")
 async def admin_broadcast_menu(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2720,7 +2728,7 @@ async def admin_broadcast_menu(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:user_profile")
 async def admin_user_profile_prompt(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2744,7 +2752,7 @@ async def admin_user_profile_prompt(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:user_find")
 async def admin_user_find_prompt(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2769,7 +2777,7 @@ async def admin_user_find_prompt(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:edit_user")
 async def admin_edit_user_prompt(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2793,7 +2801,7 @@ async def admin_edit_user_prompt(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("admin:edit_user_id:"))
 async def admin_edit_user_from_profile(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     parts = call.data.split(":")
@@ -2834,7 +2842,7 @@ async def admin_edit_user_from_profile(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("admin:edit_set:"))
 async def admin_edit_set_action(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     parts = call.data.split(":")
@@ -2885,7 +2893,7 @@ async def admin_edit_set_action(call: CallbackQuery):
 @dp.callback_query(F.data.startswith("admin:broadcast_target:"))
 async def admin_broadcast_target(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     target = call.data.split(":", 2)[2]
@@ -2918,7 +2926,7 @@ async def admin_broadcast_target(call: CallbackQuery):
 @dp.callback_query(F.data == "admin:broadcast_cancel")
 async def admin_broadcast_cancel(call: CallbackQuery):
     if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещен", show_alert=True)
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
 
     clear_admin_pending_states(call.from_user.id)
@@ -2945,7 +2953,7 @@ async def admin_broadcast_cancel(call: CallbackQuery):
 async def balance(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
     
     await call.message.edit_text(
@@ -2968,7 +2976,7 @@ async def balance(call: CallbackQuery):
 async def daily_tasks_menu(call: CallbackQuery):
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
 
     day_key = current_day_key()
@@ -2985,7 +2993,7 @@ async def daily_tasks_menu(call: CallbackQuery):
         status = "✅ Выполнено" if completed else f"⏳ {cur}/{target}"
         if completed:
             done_count += 1
-        lines.append(f"• <b>{task['title']}</b> — {status} (+{task['reward']} 💰)")
+        lines.append(f"• <b>{task['title']}</b> — {status} (+{fmt_coins(task['reward'])})")
 
     text = (
         f"{header()}\n\n"
@@ -3025,7 +3033,7 @@ async def buy_cases_menu(call: CallbackQuery):
     
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
 
     # Удаляем медиа последнего открытия кейса, если было
@@ -3071,7 +3079,7 @@ async def buy_case(call: CallbackQuery):
     case_type = call.data.split(":")[1]
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
 
     case_info = {
@@ -3081,7 +3089,7 @@ async def buy_case(call: CallbackQuery):
     }
 
     if case_type != "paid":
-        await call.answer("❌ Неизвестный кейс", show_alert=True)
+        await call.answer("❌ Неизвестный тип кейса", show_alert=True)
         return
 
     can_open_paid, paid_remaining = paid_case_available(user)
@@ -3094,7 +3102,7 @@ async def buy_case(call: CallbackQuery):
         return
 
     if user["coins"] < case_info["price"]:
-        await call.answer("❌ Недостаточно Coins!", show_alert=True)
+        await call.answer("❌ Недостаточно Coins", show_alert=True)
         return
 
     # Выбираем машину по распределению рарити специфичному для этого кейса
@@ -3172,7 +3180,7 @@ async def buy_case(call: CallbackQuery):
     if is_duplicate:
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
-            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"♻️ Компенсация: +{fmt_coins(duplicate_coins)}\n"
             "\n"
         )
     pity_text = ""
@@ -3181,13 +3189,13 @@ async def buy_case(call: CallbackQuery):
 
     caption = (
         f"{header()}\n\n"
-        f"🎉 <b>ОТКРЫТ {case_info['name'].upper()} КЕЙС</b>\n\n"
+        f"🎉 <b>Открыт {case_info['name']} кейс</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(rarity, rarity)}\n\n"
         f"{pity_text}"
-        f"⭐ Опыт: +{xp_gain} XP\n"
+        f"⭐ Опыт: +{fmt_xp(xp_gain)}\n"
         f"{duplicate_text}"
-        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n\n"
+        f"💵 <b>Цена продажи:</b> {fmt_coins(sell_price)}\n\n"
         f"{footer()}"
     )
 
@@ -3237,7 +3245,7 @@ async def free_case(call: CallbackQuery):
     
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
     available, remaining = free_case_available(user)
 
@@ -3327,7 +3335,7 @@ async def free_case(call: CallbackQuery):
     if is_duplicate:
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
-            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"♻️ Компенсация: +{fmt_coins(duplicate_coins)}\n"
             ""
         )
     pity_text = ""
@@ -3336,14 +3344,14 @@ async def free_case(call: CallbackQuery):
 
     caption = (
         f"{header()}\n\n"
-        "🎁 <b>БЕСПЛАТНЫЙ КЕЙС</b>\n\n"
+        "🎁 <b>Бесплатный кейс</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
         f"{pity_text}"
-        f"⭐ Опыт: +{xp_gain} XP\n"
+        f"⭐ Опыт: +{fmt_xp(xp_gain)}\n"
         f"{duplicate_text}"
-        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
-        f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
+        f"💵 <b>Цена продажи:</b> {fmt_coins(sell_price)}\n"
+        f"💰 <b>Бонус:</b> +{fmt_coins(FREE_CASE_BONUS_COINS)}\n\n"
         f"{footer()}"
     )
     
@@ -3380,7 +3388,7 @@ async def garage(call: CallbackQuery):
     page = int(call.data.split(":")[2])
     user = get_user(call.from_user.id)
     if not user:
-        await call.answer("❌ Тебя не нашли в базе, нажми /start", show_alert=True)
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
         return
     cars = get_user_garage(user["user_id"])
 
@@ -3397,7 +3405,7 @@ async def garage(call: CallbackQuery):
     if not cars:
         text = f"{header()}\n\n🚗 Гараж пуст\n\n{footer()}"
         kb = InlineKeyboardMarkup(
-            inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="start")]]
+            inline_keyboard=[[InlineKeyboardButton(text="🔙 К меню", callback_data="start")]]
         )
         
         if call.from_user.id in GARAGE_MESSAGE_ID:
@@ -3461,7 +3469,7 @@ async def garage(call: CallbackQuery):
     if nav:
         kb.append(nav)
 
-    kb.append([InlineKeyboardButton(text="🔙 Назад", callback_data="start")])
+    kb.append([InlineKeyboardButton(text="🔙 К меню", callback_data="start")])
 
     if call.from_user.id in GARAGE_MESSAGE_ID:
         try:
@@ -3532,10 +3540,10 @@ async def car_view(call: CallbackQuery):
     
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text=f"💵 Продать за {sell_price} 💰 Coins", callback_data=f"sell:{car_id}")],
+            [InlineKeyboardButton(text=f"💵 Продать за {fmt_coins(sell_price)}", callback_data=f"sell:{car_id}")],
             [
-                InlineKeyboardButton(text="🔙 Назад в гараж", callback_data="menu:garage:0"),
-                InlineKeyboardButton(text="🏠 Меню", callback_data="start"),
+                InlineKeyboardButton(text="🔙 В гараж", callback_data="menu:garage:0"),
+                InlineKeyboardButton(text="🏠 К меню", callback_data="start"),
             ],
         ]
     )
@@ -3544,7 +3552,7 @@ async def car_view(call: CallbackQuery):
         f"{header()}\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {emoji} {RARITY_RU.get(car['rarity'], car['rarity'])}\n"
-        f"💰 <b>Продать за:</b> {sell_price} Coins\n\n"
+        f"💰 <b>Продать за:</b> {fmt_coins(sell_price)}\n\n"
         f"{footer()}"
     )
     
@@ -3658,14 +3666,14 @@ async def sell_car(call: CallbackQuery):
         f"{header()}\n\n"
         f"✅ <b>Машина продана!</b>\n\n"
         f"🚘 {card['name_ru']}\n"
-        f"💰 <b>Получено:</b> +{sell_price} Coins\n"
+        f"💰 <b>Получено:</b> +{fmt_coins(sell_price)}\n"
         f"📉 <b>Продано сегодня:</b> {sold_today + 1}/{DAILY_SELL_LIMIT}\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
                 [
-                    InlineKeyboardButton(text="🔙 К гаражу", callback_data="menu:garage:0"),
-                    InlineKeyboardButton(text="🏠 Меню", callback_data="start"),
+                    InlineKeyboardButton(text="🔙 В гараж", callback_data="menu:garage:0"),
+                    InlineKeyboardButton(text="🏠 К меню", callback_data="start"),
                 ]
             ]
         ),
@@ -3959,7 +3967,7 @@ async def group_text_trigger(message: Message):
     if is_duplicate:
         duplicate_text = (
             "⚠️ <b>Эта машина уже есть в гараже</b>\n"
-            f"♻️ Компенсация: +{duplicate_coins} Coins\n"
+            f"♻️ Компенсация: +{fmt_coins(duplicate_coins)}\n"
             ""
         )
     pity_text = ""
@@ -3968,14 +3976,14 @@ async def group_text_trigger(message: Message):
 
     caption = (
         f"{header()}\n\n"
-        f"🎁 <b>КЕЙС {message.from_user.first_name}</b>\n\n"
+        f"🎁 <b>Кейс {message.from_user.first_name}</b>\n\n"
         f"🚘 <b>{card['name_ru']}</b>\n"
         f"Редкость: {RARITY_EMOJI[rarity]} {RARITY_RU.get(rarity, rarity)}\n"
         f"{pity_text}"
-        f"⭐ Опыт: +{xp_gain} XP\n"
+        f"⭐ Опыт: +{fmt_xp(xp_gain)}\n"
         f"{duplicate_text}"
-        f"💵 <b>Цена продажи:</b> {sell_price} Coins\n"
-        f"💰 <b>Бонус:</b> +{FREE_CASE_BONUS_COINS} Coins\n\n"
+        f"💵 <b>Цена продажи:</b> {fmt_coins(sell_price)}\n"
+        f"💰 <b>Бонус:</b> +{fmt_coins(FREE_CASE_BONUS_COINS)}\n\n"
         f"{footer()}"
     )
     
@@ -3992,9 +4000,9 @@ async def group_text_trigger(message: Message):
 async def top_command(message: Message):
     top = await get_group_top_by_coins(message.chat.id, 10)
 
-    text = f"{header()}\n\n🏆 <b>ТОП ЭТОЙ ГРУППЫ</b>\n\n"
+    text = f"{header()}\n\n🏆 <b>Топ этой группы</b>\n\n"
     for i, row in enumerate(top, start=1):
-        text += f"{i}. <b>{row['first_name']}</b> - {row['coins']} 💰\n"
+        text += f"{i}. <b>{row['first_name']}</b> — {fmt_coins(row['coins'])}\n"
     if not top:
         text += "Пока нет участников с профилем в боте.\n"
     text += f"\n{footer()}"
@@ -4006,13 +4014,13 @@ async def top_command(message: Message):
 async def fast_tap_click(call: CallbackQuery):
     parts = call.data.split(":")
     if len(parts) != 4:
-        await call.answer("❌ Раунд не найден", show_alert=True)
+        await call.answer("❌ Раунд не найден или завершён", show_alert=True)
         return
 
     chat_id_raw = parts[2]
     round_id = parts[3]
     if not chat_id_raw.lstrip("-").isdigit():
-        await call.answer("❌ Раунд не найден", show_alert=True)
+        await call.answer("❌ Раунд не найден или завершён", show_alert=True)
         return
 
     chat_id = int(chat_id_raw)
@@ -4047,10 +4055,10 @@ async def fast_tap_click(call: CallbackQuery):
     try:
         await call.message.edit_text(
             f"{header()}\n\n"
-            "🏆 <b>ПОБЕДА В БЫСТРОМ РАУНДЕ</b>\n\n"
+            "🏆 <b>Победа в быстром раунде</b>\n\n"
             f"{winner_name}, ты самый быстрый!\n\n"
-            f"💰 Награда: +{FAST_TAP_REWARD_COINS} Coins\n"
-            f"⭐ Опыт: +{FAST_TAP_REWARD_XP} XP\n\n"
+            f"💰 Награда: +{fmt_coins(FAST_TAP_REWARD_COINS)}\n"
+            f"⭐ Опыт: +{fmt_xp(FAST_TAP_REWARD_XP)}\n\n"
             f"{footer()}",
             parse_mode="HTML",
         )
@@ -4068,7 +4076,7 @@ async def top_week_command(message: Message):
     week_key = current_week_key()
     top = get_top_users_by_group_weekly_cases(message.chat.id, week_key, 10)
 
-    text = f"{header()}\n\n📅 <b>ТОП НЕДЕЛИ В ЭТОЙ ГРУППЕ</b>\n<code>{week_key}</code>\n\n"
+    text = f"{header()}\n\n📅 <b>Топ недели в этой группе</b>\n<code>{week_key}</code>\n\n"
     medals = {1: "🥇", 2: "🥈", 3: "🥉"}
     for i, row in enumerate(top, start=1):
         text += f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов\n"
@@ -4098,7 +4106,7 @@ async def balance_command(message: Message):
     
     await message.answer(
         f"{header()}\n\n"
-        f"💰 {message.from_user.first_name}, баланс: {user['coins']} Coins\n\n"
+        f"💰 {message.from_user.first_name}, баланс: {fmt_coins(user['coins'])}\n\n"
         f"{footer()}",
         parse_mode="HTML",
     )
