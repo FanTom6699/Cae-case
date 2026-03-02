@@ -45,6 +45,7 @@ from database import (
     get_top_users_by_coins,
     get_top_users_by_collection,
     get_top_users_by_xp,
+    get_top_users_by_race_wins,
     get_user_rank_by_xp,
     get_xp_analytics,
     get_economy_analytics,
@@ -77,11 +78,23 @@ from database import (
     get_all_user_ids,
     get_all_group_chat_ids,
     get_admin_summary_stats,
+    add_race_result,
+    get_user_race_stats,
 )
 from races import (
+    apply_map_modifiers_to_stats,
+    apply_tuning_upgrade,
     build_car_stats,
+    ensure_race_profiles,
+    get_car_profile,
+    get_tuning_cost,
+    is_tuning_maxed,
+    load_race_maps,
+    MAX_TUNE_LEVEL,
     make_bot_opponent,
+    pick_random_race_map,
     render_race_frame,
+    save_race_profiles,
     simulate_race,
 )
 
@@ -97,8 +110,6 @@ LOG_PATH = os.getenv("LOG_PATH", "bot.log")
 LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "1"))
 FEEDBACK_CHAT_ID = int(os.getenv("FEEDBACK_CHAT_ID", "-1003802493555"))
 ADMIN_USER_ID = int(os.getenv("ADMIN_USER_ID", "5658493362"))
-RACES_TEST_USER_ID = int(os.getenv("RACES_TEST_USER_ID", str(ADMIN_USER_ID)))
-RACES_ENABLED_FOR_ALL = os.getenv("RACES_ENABLED_FOR_ALL", "0") == "1"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -127,11 +138,18 @@ dp = Dispatcher()
 with open("cards.json", "r", encoding="utf-8-sig") as f:
     CARDS = json.load(f)
 
-COMMON_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Common"]
-RARE_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Rare"]
-EPIC_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Epic"]
-LEGENDARY_CARDS = [k for k, v in CARDS.items() if v["rarity"] == "Legendary"]
-ALL_CARDS = list(CARDS.keys())
+def _is_active_card(card: dict) -> bool:
+    return bool(str((card or {}).get("sticker_id", "")).strip())
+
+
+ACTIVE_CARDS = {card_id: card for card_id, card in CARDS.items() if _is_active_card(card)}
+COMMON_CARDS = [k for k, v in ACTIVE_CARDS.items() if v["rarity"] == "Common"]
+RARE_CARDS = [k for k, v in ACTIVE_CARDS.items() if v["rarity"] == "Rare"]
+EPIC_CARDS = [k for k, v in ACTIVE_CARDS.items() if v["rarity"] == "Epic"]
+LEGENDARY_CARDS = [k for k, v in ACTIVE_CARDS.items() if v["rarity"] == "Legendary"]
+ALL_CARDS = list(ACTIVE_CARDS.keys())
+RACE_PROFILES = ensure_race_profiles(CARDS)
+RACE_MAPS = load_race_maps()
 
 FREE_CASE_COOLDOWN = timedelta(hours=4)
 PAID_CASE_COOLDOWN = timedelta(seconds=int(os.getenv("PAID_CASE_COOLDOWN_SECONDS", "120")))
@@ -246,6 +264,25 @@ FAST_TAP_ACTIVE_ROUNDS = {}  # chat_id -> {round_id, message_id, expires_at, win
 FAST_TAP_DAILY_COUNTER = {}  # (chat_id, day_key) -> count
 FAST_TAP_DAILY_SCHEDULE = {}  # (chat_id, local_day_key) -> {"slots": [sec], "launched": set()}
 RACE_TICK_DELAY_SECONDS = float(os.getenv("RACE_TICK_DELAY_SECONDS", "1.0"))
+RACE_SELECTED_CAR_ID = {}  # user_id -> car_id
+RACE_DUEL_INVITE_TIMEOUT_SECONDS = int(os.getenv("RACE_DUEL_INVITE_TIMEOUT_SECONDS", "60"))
+RACE_DUEL_INIT_COOLDOWN_SECONDS = int(os.getenv("RACE_DUEL_INIT_COOLDOWN_SECONDS", "3600"))
+RACE_DUEL_PENDING = {}  # (chat_id, message_id) -> {challenger_id, opponent_id, challenger_name, opponent_name, status}
+RACE_DUEL_LAST_INIT_AT = {}  # user_id -> monotonic timestamp
+PRIVATE_RACE_SEARCH_TIMEOUT_SECONDS = int(os.getenv("PRIVATE_RACE_SEARCH_TIMEOUT_SECONDS", "60"))
+PRIVATE_RACE_REMATCH_BLOCK_SECONDS = int(os.getenv("PRIVATE_RACE_REMATCH_BLOCK_SECONDS", "3600"))
+PRIVATE_RACE_QUEUE_BY_CLASS = {}  # class_code -> [entry]
+PRIVATE_RACE_SEARCH_BY_USER = {}  # user_id -> entry
+PRIVATE_RACE_LAST_PAIR_TS = {}  # (min_user_id, max_user_id) -> monotonic timestamp
+RACE_RANKS = [
+    {"key": "rookie", "emoji": "🥉", "name": "Новичок", "min_wins": 0, "reward": 1500},
+    {"key": "street", "emoji": "🥉", "name": "Уличный гонщик", "min_wins": 50, "reward": 2200},
+    {"key": "semi_pro", "emoji": "🥈", "name": "Полупрофи", "min_wins": 150, "reward": 3600},
+    {"key": "pro", "emoji": "🥈", "name": "Профи", "min_wins": 300, "reward": 5200},
+    {"key": "elite", "emoji": "🥇", "name": "Элита", "min_wins": 500, "reward": 7800},
+    {"key": "legend", "emoji": "🏆", "name": "Легенда трассы", "min_wins": 750, "reward": 11500},
+    {"key": "king", "emoji": "👑", "name": "Король трассы", "min_wins": 1000, "reward": 16000},
+]
 
 # =========================
 # RARITY DRAW
@@ -429,12 +466,8 @@ def is_owner(user_id: int) -> bool:
     return user_id == ADMIN_USER_ID
 
 
-def is_races_tester(user_id: int) -> bool:
-    return user_id == RACES_TEST_USER_ID
-
-
 def can_access_races(user_id: int) -> bool:
-    return RACES_ENABLED_FOR_ALL or is_races_tester(user_id)
+    return True
 
 
 def clear_admin_pending_states(user_id: int):
@@ -656,6 +689,304 @@ def fmt_coins(value):
 
 def fmt_xp(value):
     return f"{format_number(value)} XP"
+
+
+def get_race_rank_info(wins_count: int):
+    wins = max(0, int(wins_count or 0))
+    current = RACE_RANKS[0]
+    next_rank = None
+
+    for rank in RACE_RANKS:
+        if wins >= rank["min_wins"]:
+            current = rank
+        elif next_rank is None:
+            next_rank = rank
+            break
+
+    wins_to_next = 0
+    if next_rank:
+        wins_to_next = max(0, int(next_rank["min_wins"]) - wins)
+
+    return {
+        "current": current,
+        "next": next_rank,
+        "wins_to_next": wins_to_next,
+    }
+
+
+def get_user_race_car_for_duel(user_id: int):
+    selected_car_id = RACE_SELECTED_CAR_ID.get(user_id)
+    if selected_car_id:
+        selected_car = get_car_by_id(selected_car_id)
+        if selected_car and selected_car.get("user_id") == user_id:
+            return selected_car
+        RACE_SELECTED_CAR_ID.pop(user_id, None)
+
+    cars = get_user_garage(user_id)
+    if not cars:
+        return None
+
+    return cars[0]
+
+
+def race_duel_initiator_rate_limit_ok(user_id: int):
+    now = time.monotonic()
+    last = RACE_DUEL_LAST_INIT_AT.get(int(user_id))
+    if last is not None:
+        remaining = int(max(0, RACE_DUEL_INIT_COOLDOWN_SECONDS - (now - last)))
+        if remaining > 0:
+            return False, remaining
+
+    RACE_DUEL_LAST_INIT_AT[int(user_id)] = now
+    return True, 0
+
+
+def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenger_name: str, opponent_name: str) -> str:
+    challenger_user = get_user(challenger_id)
+    opponent_user = get_user(opponent_id)
+    if not challenger_user or not opponent_user:
+        return (
+            f"{header()}\n\n"
+            "⛔ Дуэль отменена: один из игроков не зарегистрирован в боте.\n\n"
+            f"{footer()}"
+        )
+
+    challenger_car = get_user_race_car_for_duel(challenger_id)
+    opponent_car = get_user_race_car_for_duel(opponent_id)
+    if not challenger_car or not opponent_car:
+        return (
+            f"{header()}\n\n"
+            "🚘 Дуэль отменена: у одного из игроков нет машины в гараже.\n\n"
+            f"{footer()}"
+        )
+
+    challenger_card_id = challenger_car.get("name", "")
+    challenger_rarity = challenger_car.get("rarity", "Common")
+    challenger_card = CARDS.get(challenger_card_id, {})
+    challenger_car_name = challenger_card.get("name_ru") or challenger_card_id or "Машина"
+
+    opponent_card_id = opponent_car.get("name", "")
+    opponent_rarity = opponent_car.get("rarity", "Common")
+    opponent_card = CARDS.get(opponent_card_id, {})
+    opponent_car_name = opponent_card.get("name_ru") or opponent_card_id or "Машина"
+
+    challenger_profile = get_car_profile(challenger_card_id, challenger_rarity, RACE_PROFILES)
+    opponent_profile = get_car_profile(opponent_card_id, opponent_rarity, RACE_PROFILES)
+    challenger_class = str(challenger_profile.get("class", "D")).upper()
+    opponent_class = str(opponent_profile.get("class", "D")).upper()
+
+    if challenger_class != opponent_class:
+        return (
+            f"{header()}\n\n"
+            "⛔ У вас разные классы автомобиля — дуэль невозможна.\n\n"
+            f"👤 {challenger_name}: <b>{challenger_car_name}</b> — класс <b>{challenger_class}</b>\n"
+            f"👤 {opponent_name}: <b>{opponent_car_name}</b> — класс <b>{opponent_class}</b>\n\n"
+            "Выберите машины одинакового класса и повторите дуэль.\n\n"
+            f"{footer()}"
+        )
+
+    challenger_stats = build_car_stats(challenger_card_id, challenger_rarity, race_profiles=RACE_PROFILES)
+    opponent_stats = build_car_stats(opponent_card_id, opponent_rarity, race_profiles=RACE_PROFILES)
+
+    selected_map = pick_random_race_map(RACE_MAPS)
+    map_name = selected_map.get("name_ru", "Трек")
+    challenger_stats_on_map = apply_map_modifiers_to_stats(challenger_stats, selected_map)
+    opponent_stats_on_map = apply_map_modifiers_to_stats(opponent_stats, selected_map)
+
+    race_result = simulate_race(challenger_stats_on_map, opponent_stats_on_map, ticks_total=9)
+    winner = race_result.get("winner")
+
+    reward_line = ""
+    rank_line = ""
+
+    if winner == "player":
+        add_race_result(challenger_id, "win")
+        add_race_result(opponent_id, "loss")
+        winner_id = challenger_id
+        winner_name = challenger_name
+        winner_before_wins = int(challenger_user.get("race_wins", 0))
+        winner_stats = get_user_race_stats(winner_id)
+        winner_rank_before = get_race_rank_info(winner_before_wins)["current"]
+        winner_rank_after = get_race_rank_info(int(winner_stats.get("wins", 0)))["current"]
+        reward_coins = int(winner_rank_after["reward"])
+        add_coins(winner_id, reward_coins, source=f"race_duel_win_{winner_rank_after['key']}")
+        reward_line = f"💸 Награда победителю: +<b>{fmt_coins(reward_coins)}</b>\n"
+        if winner_rank_before["key"] != winner_rank_after["key"]:
+            rank_line = f"🎉 Новый ранг: {winner_rank_after['emoji']} <b>{winner_rank_after['name']}</b>\n"
+        result_line = f"🏆 Победитель: <b>{winner_name}</b>"
+    elif winner == "opponent":
+        add_race_result(challenger_id, "loss")
+        add_race_result(opponent_id, "win")
+        winner_id = opponent_id
+        winner_name = opponent_name
+        winner_before_wins = int(opponent_user.get("race_wins", 0))
+        winner_stats = get_user_race_stats(winner_id)
+        winner_rank_before = get_race_rank_info(winner_before_wins)["current"]
+        winner_rank_after = get_race_rank_info(int(winner_stats.get("wins", 0)))["current"]
+        reward_coins = int(winner_rank_after["reward"])
+        add_coins(winner_id, reward_coins, source=f"race_duel_win_{winner_rank_after['key']}")
+        reward_line = f"💸 Награда победителю: +<b>{fmt_coins(reward_coins)}</b>\n"
+        if winner_rank_before["key"] != winner_rank_after["key"]:
+            rank_line = f"🎉 Новый ранг: {winner_rank_after['emoji']} <b>{winner_rank_after['name']}</b>\n"
+        result_line = f"🏆 Победитель: <b>{winner_name}</b>"
+    else:
+        add_race_result(challenger_id, "draw")
+        add_race_result(opponent_id, "draw")
+        result_line = "🤝 Ничья"
+
+    challenger_total_stats = get_user_race_stats(challenger_id)
+    opponent_total_stats = get_user_race_stats(opponent_id)
+
+    return (
+        f"{header()}\n\n"
+        "🏁 <b>Групповая дуэль</b>\n\n"
+        f"🗺 Трек: <b>{map_name}</b>\n"
+        f"👤 {challenger_name}: <b>{challenger_car_name}</b>\n"
+        f"👤 {opponent_name}: <b>{opponent_car_name}</b>\n\n"
+        f"{result_line}\n"
+        f"{reward_line}"
+        f"{rank_line}"
+        "\n"
+        "<b>Статистика после дуэли:</b>\n"
+        f"• {challenger_name}: <b>{challenger_total_stats['wins']}/{challenger_total_stats['losses']}/{challenger_total_stats['draws']}</b> (W/L/D)\n"
+        f"• {opponent_name}: <b>{opponent_total_stats['wins']}/{opponent_total_stats['losses']}/{opponent_total_stats['draws']}</b> (W/L/D)\n\n"
+        f"{footer()}"
+    )
+
+
+async def expire_race_duel_invite_later(chat_id: int, message_id: int, timeout_seconds: int):
+    await asyncio.sleep(max(5, int(timeout_seconds or 60)))
+
+    state_key = (chat_id, message_id)
+    duel_state = RACE_DUEL_PENDING.get(state_key)
+    if not duel_state or duel_state.get("status") != "pending":
+        return
+
+    challenger_name = duel_state.get("challenger_name") or "Игрок"
+    opponent_name = duel_state.get("opponent_name") or "Игрок"
+    RACE_DUEL_PENDING.pop(state_key, None)
+
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=(
+                f"{header()}\n\n"
+                "🏁 <b>Вызов на дуэль</b>\n\n"
+                f"👤 <b>{opponent_name}</b> не ответил на вызов от <b>{challenger_name}</b>.\n"
+                "⌛ Время ожидания истекло (1 минута).\n\n"
+                f"{footer()}"
+            ),
+            parse_mode="HTML",
+        )
+    except Exception:
+        pass
+
+
+def _private_pair_key(user_a: int, user_b: int):
+    first = int(min(user_a, user_b))
+    second = int(max(user_a, user_b))
+    return (first, second)
+
+
+def _private_rematch_block_remaining(user_a: int, user_b: int, now_ts: float | None = None) -> int:
+    now_value = float(time.monotonic() if now_ts is None else now_ts)
+    last_ts = PRIVATE_RACE_LAST_PAIR_TS.get(_private_pair_key(user_a, user_b))
+    if last_ts is None:
+        return 0
+    return int(max(0, PRIVATE_RACE_REMATCH_BLOCK_SECONDS - (now_value - last_ts)))
+
+
+def _remove_private_search_entry(user_id: int):
+    existing = PRIVATE_RACE_SEARCH_BY_USER.pop(int(user_id), None)
+    if not existing:
+        return
+
+    class_code = str(existing.get("class_code", "")).upper()
+    queue = PRIVATE_RACE_QUEUE_BY_CLASS.get(class_code, [])
+    PRIVATE_RACE_QUEUE_BY_CLASS[class_code] = [
+        item for item in queue
+        if int(item.get("user_id", 0)) != int(user_id)
+    ]
+
+
+async def _expire_private_race_search_later(user_id: int, token: str):
+    await asyncio.sleep(max(5, int(PRIVATE_RACE_SEARCH_TIMEOUT_SECONDS)))
+
+    active = PRIVATE_RACE_SEARCH_BY_USER.get(int(user_id))
+    if not active or str(active.get("token")) != str(token):
+        return
+
+    chat_id = int(active.get("chat_id"))
+    message_id = int(active.get("message_id"))
+    class_code = str(active.get("class_code", "?")).upper()
+    _remove_private_search_entry(user_id)
+
+    timeout_text = (
+        f"{header()}\n\n"
+        "🔎 <b>Подбор соперника</b>\n\n"
+        f"Класс: <b>{class_code}</b>\n"
+        "⌛ За 1 минуту соперник не найден.\n\n"
+        "Нажми <b>Подбор снова</b>, чтобы повторить поиск.\n\n"
+        f"{footer()}"
+    )
+    timeout_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔁 Подбор снова", callback_data="races:vs_bot")],
+            [InlineKeyboardButton(text="❌ Отменить поиск", callback_data="races:search:cancel")],
+            [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+        ]
+    )
+
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=message_id,
+            text=timeout_text,
+            parse_mode="HTML",
+            reply_markup=timeout_kb,
+        )
+    except Exception:
+        try:
+            await bot.send_message(chat_id, timeout_text, parse_mode="HTML", reply_markup=timeout_kb)
+        except Exception:
+            pass
+
+
+async def _publish_private_race_result(entry_a: dict, entry_b: dict):
+    user_a = int(entry_a.get("user_id"))
+    user_b = int(entry_b.get("user_id"))
+    name_a = entry_a.get("user_name") or "Игрок"
+    name_b = entry_b.get("user_name") or "Игрок"
+
+    result_text = build_group_duel_result_text(user_a, user_b, name_a, name_b).replace(
+        "🏁 <b>Групповая дуэль</b>",
+        "🏁 <b>Дуэль в ЛС</b>",
+    )
+    result_kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔁 Подбор снова", callback_data="races:vs_bot")],
+            [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
+            [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+        ]
+    )
+
+    for item in (entry_a, entry_b):
+        chat_id = int(item.get("chat_id"))
+        message_id = int(item.get("message_id"))
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=result_text,
+                parse_mode="HTML",
+                reply_markup=result_kb,
+            )
+        except Exception:
+            try:
+                await bot.send_message(chat_id, result_text, parse_mode="HTML", reply_markup=result_kb)
+            except Exception:
+                pass
 
 
 def current_day_key():
@@ -1088,6 +1419,7 @@ async def send_stats(target, from_callback=False):
             [InlineKeyboardButton(text="🏆 Топ по Coins", callback_data="stats:coins")],
             [InlineKeyboardButton(text="🚗 Топ по коллекции", callback_data="stats:collection")],
             [InlineKeyboardButton(text="📅 Топ недели", callback_data="stats:week_cases")],
+            [InlineKeyboardButton(text="🏁 Топ по победам", callback_data="stats:race_wins")],
             [InlineKeyboardButton(text="🏅 Топ по уровню", callback_data="stats:level")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="start")],
         ]
@@ -1123,6 +1455,10 @@ async def show_leaderboard(call: CallbackQuery, stat_type: str):
         top = get_top_users_by_weekly_cases(week_key, 10)
         title = f"📅 <b>ТОП НЕДЕЛИ ПО ОТКРЫТИЯМ</b>\n<code>{week_key}</code>"
         line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['cases_opened']} кейсов"
+    elif stat_type == "race_wins":
+        top = get_top_users_by_race_wins(10)
+        title = "🏁 <b>ТОП ПО ПОБЕДАМ В ГОНКАХ</b>"
+        line_format = lambda i, row, medals: f"{medals.get(i, f'{i}.')} <b>{row['first_name'] or 'Игрок'}</b> — {row['race_wins']} побед ({row['race_total']} заездов)"
     else:
         top = get_top_users_by_collection(10)
         total_cards = len(CARDS)
@@ -1665,27 +2001,484 @@ async def races_menu(call: CallbackQuery):
     cars = get_user_garage(call.from_user.id)
     cars_count = len(cars)
     race_ready_text = "✅ Готов к заездам" if cars_count > 0 else "⚠️ Нужна хотя бы 1 машина"
+    selected_car = None
+    selected_card = None
+    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+    if selected_car_id:
+        selected_car = get_car_by_id(selected_car_id)
+        if not selected_car or selected_car.get("user_id") != call.from_user.id:
+            RACE_SELECTED_CAR_ID.pop(call.from_user.id, None)
+            selected_car = None
+        else:
+            selected_card = CARDS.get(selected_car.get("name", ""), {})
+
+    if selected_car:
+        selected_name = selected_card.get("name_ru") or selected_car.get("name") or "Машина"
+        selected_profile = get_car_profile(selected_car.get("name", ""), selected_car.get("rarity", "Common"), RACE_PROFILES)
+        selected_line = (
+            f"🚘 Выбрана: <b>{selected_name}</b> "
+            f"({RARITY_EMOJI.get(selected_car.get('rarity', ''), '❓')} {RARITY_RU.get(selected_car.get('rarity', ''), selected_car.get('rarity', '—'))})"
+        )
+        selected_stats_line = (
+            f"⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>{selected_profile['speed']}/{selected_profile['accel']}/{selected_profile['grip']}/{selected_profile['reliability']}</b>"
+            f" | LVL <b>{selected_profile['tune_level']}</b>"
+        )
+    else:
+        selected_line = "🚘 Выбрана: <b>не выбрана</b>"
+        selected_stats_line = "⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>—</b>"
 
     await call.message.edit_text(
         f"{header()}\n\n"
         "🏁 <b>Гонки</b>\n\n"
-        "Тестовое меню режима гонок.\n"
-        "Пока доступны базовые разделы.\n\n"
+        "Меню режима гонок.\n"
+        "Выбирай машину, тюнинг и запускай заезды.\n\n"
         f"🚗 Машин в гараже: <b>{cars_count}</b>\n"
+        f"{selected_line}\n"
+        f"{selected_stats_line}\n"
         f"{race_ready_text}\n\n"
-        "🎯 Режим скрыт для остальных игроков.\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🏁 Гонка", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="🚘 Выбрать машину", callback_data="races:pick:classes")],
+                [InlineKeyboardButton(text="🔎 Подбор", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="⚙️ Тюнинг", callback_data="races:tune")],
+                [InlineKeyboardButton(text="❓ Как играть", callback_data="races:howto")],
                 [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
-                [InlineKeyboardButton(text="📊 Статистика", callback_data="menu:stats")],
+                [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
                 [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
             ]
         ),
         parse_mode="HTML",
     )
     await call.answer()
+
+
+@dp.callback_query(F.data == "races:howto")
+async def races_howto(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "❓ <b>Как играть в гонки</b>\n\n"
+        "<b>1) Подготовка</b>\n"
+        "• Выбери машину в меню гонок (по классам)\n"
+        "• При желании прокачай её в тюнинге\n"
+        "• Без выбранной машины подбор не запустится\n\n"
+        "<b>2) ЛС-подбор</b>\n"
+        "• Нажми 🔎 Подбор — поиск идёт до 1 минуты\n"
+        "• Если соперник не найден, можно запустить подбор снова\n"
+        "• С одним и тем же соперником нельзя попасться повторно 1 час\n\n"
+        "<b>3) Дуэль в группе</b>\n"
+        "• Ответь на сообщение игрока командой /raceduel\n"
+        "• Игрок принимает вызов через кнопки Да/Нет\n"
+        "• Дуэль доступна только при одинаковом классе машин\n\n"
+        "<b>4) Характеристики (кратко)</b>\n"
+        "• ⚡ <b>Скорость</b> — даёт высокий общий темп на дистанции\n"
+        "• 🚀 <b>Разгон</b> — помогает быстрее набирать ход и стартовать\n"
+        "• 🛞 <b>Сцепление</b> — стабильнее проходишь сложные участки\n"
+        "• 🛡 <b>Надёжность</b> — меньше просадок и случайных потерь темпа\n\n"
+        "<b>5) Почему стоит качать тюнинг</b>\n"
+        "• Улучшает шанс на победу против равного класса\n"
+        "• Позволяет точечно усилить слабую сторону машины\n"
+        "• Даёт более стабильные результаты на разных треках\n\n"
+        "<b>6) Награды и статистика</b>\n"
+        "• За победу начисляются Coins по твоему рангу\n"
+        "• Ведётся статистика: победы/поражения/ничьи\n"
+        "• Доступен общий топ по победам (ТОП-10)\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("races:pick:"))
+async def race_pick_car_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    parts = call.data.split(":")
+    mode = parts[2] if len(parts) > 2 else "classes"
+    cars = get_user_garage(call.from_user.id)
+    if not cars:
+        await call.answer("🚗 Гараж пуст. Открой кейс", show_alert=True)
+        return
+
+    class_groups = {}
+    for car in cars:
+        profile = get_car_profile(car.get("name", ""), car.get("rarity", "Common"), RACE_PROFILES)
+        class_code = str(profile.get("class", "D")).upper()
+        class_groups.setdefault(class_code, []).append(car)
+
+    class_order = ["D", "C", "B", "A", "S"]
+    sorted_classes = sorted(
+        class_groups.keys(),
+        key=lambda code: (class_order.index(code) if code in class_order else 999, code),
+    )
+
+    if mode == "classes" or mode.isdigit():
+        kb = []
+        for class_code in sorted_classes:
+            class_cars_count = len(class_groups.get(class_code, []))
+            kb.append([
+                InlineKeyboardButton(
+                    text=f"Класс {class_code} • {class_cars_count} шт.",
+                    callback_data=f"races:pick:class:{class_code}:0",
+                )
+            ])
+
+        kb.append([InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")])
+
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "🚘 <b>Выбор машины для гонки</b>\n\n"
+            f"Всего машин: <b>{len(cars)}</b>\n"
+            f"Классов: <b>{len(sorted_classes)}</b>\n\n"
+            "Сначала выбери класс автомобиля:\n\n"
+            f"{footer()}",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+            parse_mode="HTML",
+        )
+        await call.answer()
+        return
+
+    if mode != "class" or len(parts) < 5:
+        await call.answer("⚠️ Неверный формат выбора", show_alert=True)
+        return
+
+    class_code = str(parts[3]).upper()
+    try:
+        page = int(parts[4])
+    except Exception:
+        page = 0
+
+    class_cars = class_groups.get(class_code, [])
+    if not class_cars:
+        await call.answer("🚘 В этом классе нет машин", show_alert=True)
+        return
+
+    total = len(class_cars)
+    max_page = max(0, (total - 1) // GARAGE_PAGE_SIZE)
+    page = max(0, min(page, max_page))
+    start = page * GARAGE_PAGE_SIZE
+    end = start + GARAGE_PAGE_SIZE
+    chunk = class_cars[start:end]
+    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+
+    kb = []
+    for car in chunk:
+        card = CARDS.get(car.get("name", ""), {})
+        display_name = card.get("name_ru") or car.get("name", "Машина")
+        emoji = RARITY_EMOJI.get(car.get("rarity"), "❓")
+        selected_prefix = "✅ " if selected_car_id == car.get("id") else ""
+        kb.append([
+            InlineKeyboardButton(
+                text=f"{selected_prefix}{emoji} {display_name}",
+                callback_data=f"races:picksel:{car['id']}",
+            )
+        ])
+
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton(text="⬅️", callback_data=f"races:pick:class:{class_code}:{page - 1}"))
+    if end < total:
+        nav.append(InlineKeyboardButton(text="➡️", callback_data=f"races:pick:class:{class_code}:{page + 1}"))
+    if nav:
+        kb.append(nav)
+
+    kb.append([InlineKeyboardButton(text="🔙 К классам", callback_data="races:pick:classes")])
+    kb.append([InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")])
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🚘 <b>Выбор машины для гонки</b>\n\n"
+        f"Класс: <b>{class_code}</b>\n"
+        f"Страница: <b>{page + 1}/{max_page + 1}</b>\n"
+        f"Машин в классе: <b>{total}</b>\n\n"
+        "✅ — текущая выбранная машина\n\n"
+        "Выбери машину из списка:\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=kb),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("races:picksel:"))
+async def race_pick_car_select(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    car_id = int(call.data.split(":")[2])
+    car = get_car_by_id(car_id)
+    if not car or car.get("user_id") != call.from_user.id:
+        await call.answer("⛔ Машина недоступна", show_alert=True)
+        return
+
+    RACE_SELECTED_CAR_ID[call.from_user.id] = car_id
+    await call.answer("✅ Машина выбрана")
+
+    cars = get_user_garage(call.from_user.id)
+    cars_count = len(cars)
+    race_ready_text = "✅ Готов к заездам" if cars_count > 0 else "⚠️ Нужна хотя бы 1 машина"
+    card = CARDS.get(car.get("name", ""), {})
+    profile = get_car_profile(car.get("name", ""), car.get("rarity", "Common"), RACE_PROFILES)
+    selected_name = card.get("name_ru") or car.get("name") or "Машина"
+    selected_line = (
+        f"🚘 Выбрана: <b>{selected_name}</b> "
+        f"({RARITY_EMOJI.get(car.get('rarity', ''), '❓')} {RARITY_RU.get(car.get('rarity', ''), car.get('rarity', '—'))})"
+    )
+    selected_stats_line = (
+        f"⚙️ Скорость/Разгон/Сцепление/Надёжность: <b>{profile['speed']}/{profile['accel']}/{profile['grip']}/{profile['reliability']}</b>"
+        f" | LVL <b>{profile['tune_level']}</b>"
+    )
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "🏁 <b>Гонки</b>\n\n"
+        "Меню режима гонок.\n"
+        "Выбирай машину, тюнинг и запускай заезды.\n\n"
+        f"🚗 Машин в гараже: <b>{cars_count}</b>\n"
+        f"{selected_line}\n"
+        f"{selected_stats_line}\n"
+        f"{race_ready_text}\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🚘 Выбрать машину", callback_data="races:pick:classes")],
+                [InlineKeyboardButton(text="🔎 Подбор", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="⚙️ Тюнинг", callback_data="races:tune")],
+                [InlineKeyboardButton(text="❓ Как играть", callback_data="races:howto")],
+                [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
+                [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
+                [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
+            ]
+        ),
+        parse_mode="HTML",
+    )
+
+
+@dp.callback_query(F.data == "races:stats")
+async def race_stats_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    stats = get_user_race_stats(call.from_user.id)
+    total = int(stats.get("total", 0))
+    wins = int(stats.get("wins", 0))
+    losses = int(stats.get("losses", 0))
+    draws = int(stats.get("draws", 0))
+    winrate = (wins / total * 100.0) if total > 0 else 0.0
+    rank_info = get_race_rank_info(wins)
+    current_rank = rank_info["current"]
+    next_rank = rank_info["next"]
+
+    if next_rank:
+        next_rank_line = (
+            f"🎯 До следующего ранга ({next_rank['emoji']} {next_rank['name']}): "
+            f"<b>{rank_info['wins_to_next']}</b> побед\n"
+        )
+    else:
+        next_rank_line = "🎯 Следующий ранг: <b>MAX</b>\n"
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📊 <b>Статистика гонок</b>\n\n"
+        f"🏷 Ранг: <b>{current_rank['emoji']} {current_rank['name']}</b>\n"
+        f"💸 Награда за победу: <b>{fmt_coins(current_rank['reward'])}</b>\n"
+        f"{next_rank_line}"
+        "\n"
+        f"🏁 Всего заездов: <b>{total}</b>\n"
+        f"🏆 Побед: <b>{wins}</b>\n"
+        f"😵 Поражений: <b>{losses}</b>\n"
+        f"🤝 Ничьих: <b>{draws}</b>\n"
+        f"📈 Винрейт: <b>{winrate:.1f}%</b>\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            ]
+        ),
+    )
+    await call.answer()
+
+
+async def show_race_tuning_menu(call: CallbackQuery, notice: str = ""):
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+    if not selected_car_id:
+        await call.answer("🚘 Сначала выбери машину в меню гонок", show_alert=True)
+        return
+
+    selected_car = get_car_by_id(selected_car_id)
+    if not selected_car or selected_car.get("user_id") != call.from_user.id:
+        RACE_SELECTED_CAR_ID.pop(call.from_user.id, None)
+        await call.answer("🚘 Выбранная машина недоступна. Выбери снова", show_alert=True)
+        return
+
+    card_id = selected_car.get("name", "")
+    rarity = selected_car.get("rarity", "Common")
+    card = CARDS.get(card_id, {})
+    profile = get_car_profile(card_id, rarity, RACE_PROFILES)
+    is_maxed = is_tuning_maxed(profile)
+    next_cost = None if is_maxed else get_tuning_cost(profile)
+
+    car_name = card.get("name_ru") or card_id or "Машина"
+    tune_text = (
+        f"{header()}\n\n"
+        "⚙️ <b>Тюнинг</b>\n\n"
+        f"🚘 <b>{car_name}</b>\n"
+        f"Редкость: {RARITY_EMOJI.get(rarity, '❓')} {RARITY_RU.get(rarity, rarity)}\n"
+        f"🧩 Архетип: <b>{profile.get('archetype', 'sedan')}</b>\n"
+        f"📈 Тюнинг-уровень: <b>{profile.get('tune_level', 1)}</b>/<b>{MAX_TUNE_LEVEL}</b>\n\n"
+        f"⚡ Скорость: <b>{profile['speed']}</b>\n"
+        f"🚀 Разгон: <b>{profile['accel']}</b>\n"
+        f"🛞 Сцепление: <b>{profile['grip']}</b>\n"
+        f"🛡 Надёжность: <b>{profile['reliability']}</b>\n\n"
+        f"💰 Следующий апгрейд: <b>{fmt_coins(next_cost) if next_cost is not None else 'MAX LEVEL'}</b>\n"
+        f"👛 Твой баланс: <b>{fmt_coins(user.get('coins', 0))}</b>\n"
+    )
+
+    if notice:
+        tune_text += f"\n{notice}\n"
+
+    tune_text += f"\n{footer()}"
+
+    await call.message.edit_text(
+        tune_text,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="⚡ +Скорость", callback_data="races:tuneup:speed"),
+                    InlineKeyboardButton(text="🚀 +Разгон", callback_data="races:tuneup:accel"),
+                ],
+                [
+                    InlineKeyboardButton(text="🛞 +Сцепление", callback_data="races:tuneup:grip"),
+                    InlineKeyboardButton(text="🛡 +Надёжность", callback_data="races:tuneup:reliability"),
+                ],
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            ]
+        ),
+    )
+
+
+@dp.callback_query(F.data == "races:tune")
+async def race_tune_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    await show_race_tuning_menu(call)
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("races:tuneup:"))
+async def race_tune_upgrade(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    user = get_user(call.from_user.id)
+    if not user:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+    if not selected_car_id:
+        await call.answer("🚘 Сначала выбери машину", show_alert=True)
+        return
+
+    selected_car = get_car_by_id(selected_car_id)
+    if not selected_car or selected_car.get("user_id") != call.from_user.id:
+        RACE_SELECTED_CAR_ID.pop(call.from_user.id, None)
+        await call.answer("🚘 Машина недоступна. Выбери снова", show_alert=True)
+        return
+
+    stat = call.data.split(":")[2]
+    card_id = selected_car.get("name", "")
+    rarity = selected_car.get("rarity", "Common")
+
+    profile_before = get_car_profile(card_id, rarity, RACE_PROFILES)
+    cost = get_tuning_cost(profile_before)
+    user_coins = int(user.get("coins", 0))
+    if user_coins < cost:
+        await call.answer(f"⛔ Не хватает Coins: нужно {fmt_coins(cost)}", show_alert=True)
+        return
+
+    ok, profile_after, reason = apply_tuning_upgrade(card_id, rarity, RACE_PROFILES, stat)
+    if not ok:
+        if reason == "cap_reached":
+            await call.answer("⛔ Лимит прокачки этого параметра достигнут", show_alert=True)
+        elif reason == "max_level_reached":
+            await call.answer(f"⛔ Достигнут максимум тюнинга: LVL {MAX_TUNE_LEVEL}", show_alert=True)
+        elif reason == "class_power_cap":
+            await call.answer("⛔ Ограничение класса: слишком сильная сборка", show_alert=True)
+        else:
+            await call.answer("⚠️ Не удалось применить тюнинг", show_alert=True)
+        return
+
+    subtract_coins(call.from_user.id, cost, source=f"race_tune_{stat}")
+    save_race_profiles(RACE_PROFILES)
+
+    stat_labels = {
+        "speed": "Скорость",
+        "accel": "Разгон",
+        "grip": "Сцепление",
+        "reliability": "Надёжность",
+    }
+    stat_label = stat_labels.get(stat, stat)
+    await show_race_tuning_menu(
+        call,
+        notice=(
+            f"✅ Улучшено: <b>{stat_label}</b> → <b>{profile_after.get(stat)}</b>\n"
+            f"💸 Списано: <b>{fmt_coins(cost)}</b>"
+        ),
+    )
+    await call.answer("✅ Тюнинг применён")
 
 
 @dp.callback_query(F.data == "races:vs_bot")
@@ -1708,85 +2501,118 @@ async def race_vs_bot(call: CallbackQuery):
         await call.answer("🚗 Гараж пуст. Открой кейс, чтобы начать гонки", show_alert=True)
         return
 
-    selected_car = random.choice(cars)
-    card_id = selected_car.get("name", "")
-    rarity = selected_car.get("rarity", "Common")
-    card = CARDS.get(card_id, {})
-    player_car_name = card.get("name_ru") or card_id or "Твоя машина"
-
-    player_stats = build_car_stats(card_id, rarity)
-    opponent_name, race_class, opponent_stats = make_bot_opponent(rarity)
-    race_result = simulate_race(player_stats, opponent_stats, ticks_total=9)
-
-    frames = race_result["frames"]
-    if not frames:
-        await call.answer("⚠️ Не удалось запустить гонку", show_alert=True)
+    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+    if not selected_car_id:
+        await call.answer("🚘 Сначала выбери машину в меню гонок", show_alert=True)
         return
 
-    await call.answer("🏁 Поехали!")
+    selected_car = get_car_by_id(selected_car_id)
+    if not selected_car or selected_car.get("user_id") != call.from_user.id:
+        RACE_SELECTED_CAR_ID.pop(call.from_user.id, None)
+        await call.answer("🚘 Выбранная машина недоступна. Выбери снова", show_alert=True)
+        return
 
-    for idx, frame in enumerate(frames):
-        frame_text = render_race_frame(
-            player_car_name=player_car_name,
-            opponent_name=opponent_name,
-            player_progress=frame["player_progress"],
-            opponent_progress=frame["opponent_progress"],
-            race_class=race_class,
-            tick=frame["tick"],
-            ticks_total=len(frames),
-        )
-        race_text = (
-            f"{header()}\n\n"
-            f"{frame_text}\n\n"
-            f"{footer()}"
-        )
+    profile = get_car_profile(selected_car.get("name", ""), selected_car.get("rarity", "Common"), RACE_PROFILES)
+    class_code = str(profile.get("class", "D")).upper()
 
-        try:
-            await call.message.edit_text(
-                race_text,
-                parse_mode="HTML",
-                reply_markup=InlineKeyboardMarkup(
-                    inline_keyboard=[
-                        [InlineKeyboardButton(text="⏹ Прервать", callback_data="menu:races")],
-                    ]
-                ),
-            )
-        except TelegramBadRequest:
-            pass
+    active_search = PRIVATE_RACE_SEARCH_BY_USER.get(call.from_user.id)
+    if active_search:
+        elapsed = max(0.0, time.monotonic() - float(active_search.get("started_at", 0.0)))
+        remaining = int(max(0, PRIVATE_RACE_SEARCH_TIMEOUT_SECONDS - elapsed))
+        await call.answer(f"⏳ Ты уже в подборе. Осталось ~{max(1, int(math.ceil(remaining / 60)))} мин", show_alert=True)
+        return
 
-        if idx < len(frames) - 1:
-            await asyncio.sleep(max(0.4, RACE_TICK_DELAY_SECONDS))
+    queue = PRIVATE_RACE_QUEUE_BY_CLASS.setdefault(class_code, [])
+    queue[:] = [
+        item for item in queue
+        if int(item.get("user_id", 0)) in PRIVATE_RACE_SEARCH_BY_USER
+        and str(PRIVATE_RACE_SEARCH_BY_USER[int(item.get("user_id", 0))].get("token")) == str(item.get("token"))
+    ]
 
-    winner = race_result["winner"]
-    if winner == "player":
-        result_line = "🏆 <b>Победа!</b> Ты приехал первым."
-    elif winner == "opponent":
-        result_line = "😵 <b>Поражение.</b> Бот оказался быстрее."
-    else:
-        result_line = "🤝 <b>Ничья.</b> Идеально ровный финиш."
+    now_ts = time.monotonic()
+    matched_entry = None
+    for candidate in queue:
+        candidate_user_id = int(candidate.get("user_id", 0))
+        if candidate_user_id == call.from_user.id:
+            continue
+        if _private_rematch_block_remaining(call.from_user.id, candidate_user_id, now_ts=now_ts) > 0:
+            continue
+        matched_entry = candidate
+        break
 
-    final_text = (
-        f"{header()}\n\n"
-        "🏁 <b>Гонка завершена</b>\n\n"
-        f"🚘 Твоя машина: <b>{player_car_name}</b>\n"
-        f"🤖 Соперник: <b>{opponent_name}</b>\n"
-        f"📊 Класс заезда: <b>{race_class}</b>\n\n"
-        f"{result_line}\n\n"
-        "🎯 Режим тестовый: награды пока отключены.\n\n"
-        f"{footer()}"
-    )
+    self_entry = {
+        "user_id": int(call.from_user.id),
+        "chat_id": int(call.message.chat.id),
+        "message_id": int(call.message.message_id),
+        "user_name": call.from_user.first_name or "Игрок",
+        "class_code": class_code,
+        "started_at": now_ts,
+    }
+
+    if matched_entry:
+        queue[:] = [item for item in queue if int(item.get("user_id", 0)) != int(matched_entry.get("user_id", 0))]
+        PRIVATE_RACE_SEARCH_BY_USER.pop(int(matched_entry.get("user_id", 0)), None)
+
+        pair_key = _private_pair_key(call.from_user.id, int(matched_entry.get("user_id", 0)))
+        PRIVATE_RACE_LAST_PAIR_TS[pair_key] = now_ts
+
+        await _publish_private_race_result(self_entry, matched_entry)
+        await call.answer("✅ Соперник найден!", show_alert=False)
+        return
+
+    token = f"{call.from_user.id}:{now_ts}"
+    self_entry["token"] = token
+    PRIVATE_RACE_SEARCH_BY_USER[int(call.from_user.id)] = self_entry
+    queue.append(self_entry)
+
+    asyncio.create_task(_expire_private_race_search_later(call.from_user.id, token))
 
     await call.message.edit_text(
-        final_text,
+        f"{header()}\n\n"
+        "🔎 <b>Подбор соперника</b>\n\n"
+        f"Класс: <b>{class_code}</b>\n"
+        "Ищем игрока до <b>1 минуты</b>...\n\n"
+        "Если соперник не найдётся — нажми подбор снова.\n"
+        "С ботом подбор сейчас отключён.\n\n"
+        f"{footer()}",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
-                [InlineKeyboardButton(text="🔁 Ещё заезд", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="❌ Отменить поиск", callback_data="races:search:cancel")],
                 [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
-                [InlineKeyboardButton(text="🏠 К меню", callback_data="start")],
             ]
         ),
     )
+    await call.answer("🔎 Подбор запущен")
+
+
+@dp.callback_query(F.data == "races:search:cancel")
+async def race_search_cancel(call: CallbackQuery):
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    active_search = PRIVATE_RACE_SEARCH_BY_USER.get(call.from_user.id)
+    if not active_search:
+        await call.answer("ℹ️ Сейчас нет активного подбора", show_alert=True)
+        return
+
+    _remove_private_search_entry(call.from_user.id)
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "❌ <b>Подбор отменён</b>\n\n"
+        "Поиск соперника остановлен.\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔁 Подбор снова", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            ]
+        ),
+    )
+    await call.answer("✅ Поиск остановлен")
 
 
 @dp.message(Command("stats"))
@@ -4184,6 +5010,192 @@ async def top_command(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
+@dp.message(F.chat.type != "private", Command("raceduel"))
+async def race_duel_group(message: Message):
+    if not can_access_races(message.from_user.id):
+        await message.answer(
+            f"{header()}\n\n"
+            "⛔ Гонки пока в тесте\n"
+            "Доступ ограничен для тестового режима.\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    reply = message.reply_to_message
+    if not reply or not reply.from_user:
+        await message.answer(
+            f"{header()}\n\n"
+            "🏁 Чтобы начать дуэль, ответь командой\n"
+            "<code>/raceduel</code> на сообщение соперника.\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    challenger_id = message.from_user.id
+    opponent_id = reply.from_user.id
+
+    if opponent_id == challenger_id:
+        await message.answer("Нельзя вызвать самого себя.")
+        return
+
+    if reply.from_user.is_bot:
+        await message.answer("С ботом дуэль недоступна.")
+        return
+
+    rate_ok, rate_remaining = race_duel_initiator_rate_limit_ok(challenger_id)
+    if not rate_ok:
+        wait_minutes = max(1, int(math.ceil(rate_remaining / 60)))
+        await message.answer(
+            f"{header()}\n\n"
+            "⏳ Лимит дуэлей\n\n"
+            f"Ты можешь предлагать дуэль только 1 раз в час.\n"
+            f"Подожди ещё: <b>{wait_minutes} мин</b>.\n\n"
+            "Входящие дуэли принимать можно без ограничений.\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    challenger_user = get_user(challenger_id)
+    opponent_user = get_user(opponent_id)
+    if not challenger_user or not opponent_user:
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await message.answer(
+            f"{header()}\n\n"
+            "👤 Оба участника должны быть зарегистрированы в боте.\n\n"
+            f"<a href='{bot_link}'>Открыть бота в ЛС</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    challenger_car = get_user_race_car_for_duel(challenger_id)
+    opponent_car = get_user_race_car_for_duel(opponent_id)
+    if not challenger_car or not opponent_car:
+        await message.answer(
+            f"{header()}\n\n"
+            "🚘 У одного из участников нет машины в гараже для дуэли.\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+    challenger_name = message.from_user.first_name or "Игрок"
+    opponent_name = reply.from_user.first_name or "Игрок"
+    invite_text = (
+        f"{header()}\n\n"
+        "🏁 <b>Вызов на дуэль</b>\n\n"
+        f"👤 <b>{challenger_name}</b> вызывает на гонку\n"
+        f"👤 <b>{opponent_name}</b>\n\n"
+        "Принять вызов?\n\n"
+        f"{footer()}"
+    )
+
+    invite_message = await message.answer(
+        invite_text,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text="✅ Да",
+                        callback_data=f"raceduel:yes:{challenger_id}:{opponent_id}",
+                    ),
+                    InlineKeyboardButton(
+                        text="❌ Нет",
+                        callback_data=f"raceduel:no:{challenger_id}:{opponent_id}",
+                    ),
+                ]
+            ]
+        ),
+    )
+
+    RACE_DUEL_PENDING[(message.chat.id, invite_message.message_id)] = {
+        "challenger_id": challenger_id,
+        "opponent_id": opponent_id,
+        "challenger_name": challenger_name,
+        "opponent_name": opponent_name,
+        "status": "pending",
+    }
+    asyncio.create_task(
+        expire_race_duel_invite_later(
+            chat_id=message.chat.id,
+            message_id=invite_message.message_id,
+            timeout_seconds=RACE_DUEL_INVITE_TIMEOUT_SECONDS,
+        )
+    )
+
+
+@dp.callback_query(F.data.startswith("raceduel:"))
+async def race_duel_decision(call: CallbackQuery):
+    if call.message.chat.type == "private":
+        await call.answer("❌ Только для групп", show_alert=True)
+        return
+
+    parts = call.data.split(":")
+    if len(parts) != 4:
+        await call.answer("❌ Некорректный ответ", show_alert=True)
+        return
+
+    action = parts[1]
+    try:
+        challenger_id = int(parts[2])
+        opponent_id = int(parts[3])
+    except Exception:
+        await call.answer("❌ Некорректный ответ", show_alert=True)
+        return
+
+    state_key = (call.message.chat.id, call.message.message_id)
+    duel_state = RACE_DUEL_PENDING.get(state_key)
+    if not duel_state:
+        await call.answer("⌛ Это приглашение уже неактуально", show_alert=True)
+        return
+
+    if duel_state.get("status") != "pending":
+        await call.answer("⌛ Ответ уже получен", show_alert=True)
+        return
+
+    if duel_state.get("challenger_id") != challenger_id or duel_state.get("opponent_id") != opponent_id:
+        await call.answer("❌ Некорректный ответ", show_alert=True)
+        return
+
+    if call.from_user.id != opponent_id:
+        await call.answer("⛔ Ответить может только вызванный игрок", show_alert=True)
+        return
+
+    challenger_name = duel_state.get("challenger_name") or "Игрок"
+    opponent_name = duel_state.get("opponent_name") or "Игрок"
+
+    if action == "no":
+        duel_state["status"] = "rejected"
+        RACE_DUEL_PENDING.pop(state_key, None)
+        await call.message.edit_text(
+            f"{header()}\n\n"
+            "🏁 <b>Вызов на дуэль</b>\n\n"
+            f"👤 <b>{opponent_name}</b> отклонил вызов от <b>{challenger_name}</b>.\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        await call.answer("❌ Дуэль отклонена")
+        return
+
+    if action != "yes":
+        await call.answer("❌ Некорректный ответ", show_alert=True)
+        return
+
+    duel_state["status"] = "accepted"
+    RACE_DUEL_PENDING.pop(state_key, None)
+    result_text = build_group_duel_result_text(
+        challenger_id=challenger_id,
+        opponent_id=opponent_id,
+        challenger_name=challenger_name,
+        opponent_name=opponent_name,
+    )
+    await call.message.edit_text(result_text, parse_mode="HTML")
+    await call.answer("✅ Дуэль принята")
+
+
 @dp.callback_query(F.data.startswith("fasttap:click:"))
 async def fast_tap_click(call: CallbackQuery):
     parts = call.data.split(":")
@@ -4313,6 +5325,7 @@ async def main():
                 BotCommand(command="welcome", description="Приветствие новичков"),
                 BotCommand(command="balance", description="Узнать баланс"),
                 BotCommand(command="top", description="Топ игроков"),
+                BotCommand(command="raceduel", description="Дуэль-гонка (по reply)"),
             ],
             scope=BotCommandScopeAllGroupChats()
         )

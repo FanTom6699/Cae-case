@@ -1,0 +1,125 @@
+{
+  "version": 3,
+  "maps": [
+    {
+      "id": "city_loop",
+      "name_ru": "Городское кольцо",
+      "description_ru": "Плавные дуги и длинные прямые. Хороший баланс темпа и контроля.",
+      "modifiers": {"speed": 1.08, "accel": 1.02, "grip": 0.98, "reliability": 1.00}
+    },
+    {
+      "id": "speed_ring",
+      "name_ru": "Скоростной овал",
+      "description_ru": "Затяжные дуги и высокий средний темп. Бонус для скорости и разгона.",
+      "modifiers": {"speed": 1.15, "accel": 1.05, "grip": 0.92, "reliability": 0.98}
+    },
+    {
+      "id": "mountain_snake",
+      "name_ru": "Горный серпантин",
+      "description_ru": "Частые связки и шпильки. Сцепление решает исход.",
+      "modifiers": {"speed": 0.90, "accel": 0.98, "grip": 1.16, "reliability": 1.08}
+    },
+    {
+      "id": "rain_harbor",
+      "name_ru": "Дождевой порт",
+      "description_ru": "Скользкое покрытие и перекладки. Нужны сцепление и надёжность.",
+      "modifiers": {"speed": 0.93, "accel": 0.96, "grip": 1.20, "reliability": 1.12}
+    },
+    {
+      "id": "desert_raid",
+      "name_ru": "Пустынный рейд",
+      "description_ru": "Пыльные дуги и неровности. Стабильность важнее пиковой скорости.",
+      "modifiers": {"speed": 0.95, "accel": 1.00, "grip": 1.10, "reliability": 1.15}
+    },
+    {
+      "id": "neon_chicane",
+      "name_ru": "Неоновые шиканы",
+      "description_ru": "Техничные шиканы и короткие ускорения. Ценится разгон и сцепление.",
+      "modifiers": {"speed": 0.92, "accel": 1.04, "grip": 1.18, "reliability": 1.05}
+    },
+    {
+      "id": "coastal_arc",
+      "name_ru": "Прибрежная дуга",
+      "description_ru": "Быстрые дуги вдоль берега и стабильный ритм поворотов.",
+      "modifiers": {"speed": 1.06, "accel": 1.00, "grip": 1.02, "reliability": 1.00}
+    },
+    {
+      "id": "industrial_maze",
+      "name_ru": "Индустриальный лабиринт",
+      "description_ru": "Узкие коридоры и резкие смены траектории. Ошибки стоят дорого.",
+      "modifiers": {"speed": 0.90, "accel": 1.03, "grip": 1.14, "reliability": 1.06}
+    },
+    {
+      "id": "old_town_twist",
+      "name_ru": "Старый квартал",
+      "description_ru": "Короткие прямые и плотные повороты между секциями.",
+      "modifiers": {"speed": 0.91, "accel": 1.05, "grip": 1.12, "reliability": 1.04}
+    },
+    {
+      "id": "canyon_flow",
+      "name_ru": "Каньонный поток",
+      "description_ru": "Волнистый маршрут с чередованием быстрых и медленных зон.",
+      "modifiers": {"speed": 0.98, "accel": 1.01, "grip": 1.08, "reliability": 1.06}
+    },
+    {
+      "id": "airport_sprint",
+      "name_ru": "Аэродромный спринт",
+      "description_ru": "Длинные прогоны и несколько тяжёлых торможений.",
+      "modifiers": {"speed": 1.14, "accel": 1.08, "grip": 0.90, "reliability": 0.96}
+    },
+    {
+      "id": "night_overpass",
+      "name_ru": "Ночной эстакадный",
+      "description_ru": "Связки на развязках и быстрые перестроения по траектории.",
+      "modifiers": {"speed": 1.00, "accel": 1.03, "grip": 1.09, "reliability": 1.02}
+    },
+    {
+      "id": "forest_ribbon",
+      "name_ru": "Лесная лента",
+      "description_ru": "Серия плавных S-поворотов под плотный ритм трассы.",
+      "modifiers": {"speed": 0.97, "accel": 1.00, "grip": 1.13, "reliability": 1.07}
+    },
+    {
+      "id": "metro_cross",
+      "name_ru": "Метро-кросс",
+      "description_ru": "Частые перекладки и короткие зоны ускорения между ними.",
+      "modifiers": {"speed": 0.94, "accel": 1.06, "grip": 1.12, "reliability": 1.03}
+    },
+    {
+      "id": "storm_valley",
+      "name_ru": "Штормовая долина",
+      "description_ru": "Сложный трек со скользкими участками и нестабильным сцеплением.",
+      "modifiers": {"speed": 0.92, "accel": 0.98, "grip": 1.19, "reliability": 1.14}
+    },
+    {
+      "id": "granite_hairpins",
+      "name_ru": "Гранитные шпильки",
+      "description_ru": "Тяжёлые шпильки и резкие выходы. Точность важнее мощности.",
+      "modifiers": {"speed": 0.88, "accel": 0.99, "grip": 1.22, "reliability": 1.10}
+    },
+    {
+      "id": "riverfront_line",
+      "name_ru": "Набережная линия",
+      "description_ru": "Ритмичный маршрут с быстрыми дугами у воды.",
+      "modifiers": {"speed": 1.07, "accel": 1.01, "grip": 1.00, "reliability": 1.00}
+    },
+    {
+      "id": "sunset_switchbacks",
+      "name_ru": "Сумеречные связки",
+      "description_ru": "Череда поворотов с резкой сменой угла и темпа.",
+      "modifiers": {"speed": 0.93, "accel": 1.02, "grip": 1.17, "reliability": 1.06}
+    },
+    {
+      "id": "dockyard_bends",
+      "name_ru": "Портовые изгибы",
+      "description_ru": "Узкие секции и торможения перед короткими прямиками.",
+      "modifiers": {"speed": 0.91, "accel": 1.04, "grip": 1.15, "reliability": 1.08}
+    },
+    {
+      "id": "fusion_gp",
+      "name_ru": "Фьюжн GP",
+      "description_ru": "Смешанная конфигурация: быстрые дуги, техничные связки и ровный темп.",
+      "modifiers": {"speed": 1.02, "accel": 1.02, "grip": 1.04, "reliability": 1.03}
+    }
+  ]
+}

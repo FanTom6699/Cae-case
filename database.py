@@ -32,7 +32,11 @@ def init_db():
         streak_current INTEGER DEFAULT 0,
         streak_best INTEGER DEFAULT 0,
         streak_last_claim_day TEXT,
-        duplicate_streak INTEGER DEFAULT 0
+        duplicate_streak INTEGER DEFAULT 0,
+        race_total INTEGER DEFAULT 0,
+        race_wins INTEGER DEFAULT 0,
+        race_losses INTEGER DEFAULT 0,
+        race_draws INTEGER DEFAULT 0
     )
     """)
 
@@ -220,6 +224,26 @@ def init_db():
             "ALTER TABLE users ADD COLUMN duplicate_streak INTEGER DEFAULT 0"
         )
 
+    if "race_total" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN race_total INTEGER DEFAULT 0"
+        )
+
+    if "race_wins" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN race_wins INTEGER DEFAULT 0"
+        )
+
+    if "race_losses" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN race_losses INTEGER DEFAULT 0"
+        )
+
+    if "race_draws" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN race_draws INTEGER DEFAULT 0"
+        )
+
     cur.execute(
         "UPDATE users SET created_at = COALESCE(created_at, ?) WHERE created_at IS NULL OR created_at = ''",
         (datetime.utcnow().isoformat(),)
@@ -303,7 +327,7 @@ def get_user(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak
+        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak, race_total, race_wins, race_losses, race_draws
         FROM users WHERE user_id = ?
         """,
         (user_id,)
@@ -331,6 +355,62 @@ def get_user(user_id):
         "streak_best": row[13],
         "streak_last_claim_day": row[14],
         "duplicate_streak": row[15],
+        "race_total": row[16],
+        "race_wins": row[17],
+        "race_losses": row[18],
+        "race_draws": row[19],
+    }
+
+
+def add_race_result(user_id, result):
+    normalized = str(result or "").strip().lower()
+    if normalized not in {"win", "loss", "draw"}:
+        return
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE users
+        SET race_total = COALESCE(race_total, 0) + 1,
+            race_wins = COALESCE(race_wins, 0) + ?,
+            race_losses = COALESCE(race_losses, 0) + ?,
+            race_draws = COALESCE(race_draws, 0) + ?
+        WHERE user_id = ?
+        """,
+        (
+            1 if normalized == "win" else 0,
+            1 if normalized == "loss" else 0,
+            1 if normalized == "draw" else 0,
+            user_id,
+        )
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_user_race_stats(user_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COALESCE(race_total, 0), COALESCE(race_wins, 0), COALESCE(race_losses, 0), COALESCE(race_draws, 0)
+        FROM users
+        WHERE user_id = ?
+        """,
+        (user_id,)
+    )
+    row = cur.fetchone()
+    conn.close()
+
+    if not row:
+        return {"total": 0, "wins": 0, "losses": 0, "draws": 0}
+
+    return {
+        "total": int(row[0] or 0),
+        "wins": int(row[1] or 0),
+        "losses": int(row[2] or 0),
+        "draws": int(row[3] or 0),
     }
 
 
@@ -874,6 +954,35 @@ def get_top_users_by_xp(limit=20):
 
     return [
         {"user_id": r[0], "username": r[1], "first_name": r[2], "xp_total": r[3]}
+        for r in rows
+    ]
+
+
+def get_top_users_by_race_wins(limit=10):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT user_id, username, first_name,
+               COALESCE(race_wins, 0) AS race_wins,
+               COALESCE(race_total, 0) AS race_total
+        FROM users
+        ORDER BY race_wins DESC, race_total DESC, user_id ASC
+        LIMIT ?
+        """,
+        (limit,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    return [
+        {
+            "user_id": r[0],
+            "username": r[1],
+            "first_name": r[2],
+            "race_wins": r[3],
+            "race_total": r[4],
+        }
         for r in rows
     ]
 
