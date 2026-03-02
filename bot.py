@@ -790,11 +790,48 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
 
     selected_map = pick_random_race_map(RACE_MAPS)
     map_name = selected_map.get("name_ru", "Трек")
+    map_description = selected_map.get("description_ru", "")
     challenger_stats_on_map = apply_map_modifiers_to_stats(challenger_stats, selected_map)
     opponent_stats_on_map = apply_map_modifiers_to_stats(opponent_stats, selected_map)
 
     race_result = simulate_race(challenger_stats_on_map, opponent_stats_on_map, ticks_total=9)
     winner = race_result.get("winner")
+
+    challenger_power = (
+        0.55 * challenger_stats_on_map["speed"]
+        + 0.25 * challenger_stats_on_map["accel"]
+        + 0.12 * challenger_stats_on_map["grip"]
+        + 0.08 * challenger_stats_on_map["reliability"]
+    )
+    opponent_power = (
+        0.55 * opponent_stats_on_map["speed"]
+        + 0.25 * opponent_stats_on_map["accel"]
+        + 0.12 * opponent_stats_on_map["grip"]
+        + 0.08 * opponent_stats_on_map["reliability"]
+    )
+
+    speed_diff = challenger_stats_on_map["speed"] - opponent_stats_on_map["speed"]
+    accel_diff = challenger_stats_on_map["accel"] - opponent_stats_on_map["accel"]
+    stability_diff = (
+        challenger_stats_on_map["grip"] + challenger_stats_on_map["reliability"]
+    ) - (
+        opponent_stats_on_map["grip"] + opponent_stats_on_map["reliability"]
+    )
+
+    reasons = [
+        (abs(speed_diff), "скорость", speed_diff),
+        (abs(accel_diff), "разгон", accel_diff),
+        (abs(stability_diff), "стабильность", stability_diff),
+    ]
+    reasons.sort(key=lambda x: x[0], reverse=True)
+    top_metric, top_value = reasons[0][1], reasons[0][2]
+
+    if top_value > 0:
+        explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {challenger_name}"
+    elif top_value < 0:
+        explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {opponent_name}"
+    else:
+        explain_line = "Ключевой фактор: <b>почти равные характеристики</b>"
 
     reward_line = ""
     rank_line = ""
@@ -840,16 +877,28 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
     return (
         f"{header()}\n\n"
         "🏁 <b>Групповая дуэль</b>\n\n"
+        f"📊 Класс заезда: <b>{challenger_class}</b>\n"
         f"🗺 Трек: <b>{map_name}</b>\n"
+        f"{map_description}\n"
         f"👤 {challenger_name}: <b>{challenger_car_name}</b>\n"
         f"👤 {opponent_name}: <b>{opponent_car_name}</b>\n\n"
+        "<b>Итог по дистанции:</b>\n"
+        f"• {challenger_name}: <b>{int(round(race_result['player_progress']))}%</b>\n"
+        f"• {opponent_name}: <b>{int(round(race_result['opponent_progress']))}%</b>\n\n"
+        "<b>Время прохождения:</b>\n"
+        f"• {challenger_name}: <b>{race_result['player_time_s']:.2f} c</b>\n"
+        f"• {opponent_name}: <b>{race_result['opponent_time_s']:.2f} c</b>\n\n"
+        "<b>Сравнение характеристик:</b>\n"
+        f"• {challenger_name}: темп <b>{challenger_power:.1f}</b> | ⚡{challenger_stats_on_map['speed']} 🚀{challenger_stats_on_map['accel']} 🛞{challenger_stats_on_map['grip']} 🛡{challenger_stats_on_map['reliability']}\n"
+        f"• {opponent_name}: темп <b>{opponent_power:.1f}</b> | ⚡{opponent_stats_on_map['speed']} 🚀{opponent_stats_on_map['accel']} 🛞{opponent_stats_on_map['grip']} 🛡{opponent_stats_on_map['reliability']}\n"
+        f"• {explain_line}\n\n"
         f"{result_line}\n"
         f"{reward_line}"
         f"{rank_line}"
         "\n"
         "<b>Статистика после дуэли:</b>\n"
-        f"• {challenger_name}: <b>{challenger_total_stats['wins']}/{challenger_total_stats['losses']}/{challenger_total_stats['draws']}</b> (W/L/D)\n"
-        f"• {opponent_name}: <b>{opponent_total_stats['wins']}/{opponent_total_stats['losses']}/{opponent_total_stats['draws']}</b> (W/L/D)\n\n"
+        f"• {challenger_name}: <b>{challenger_total_stats['wins']}/{challenger_total_stats['losses']}/{challenger_total_stats['draws']}</b> (В/П/Н)\n"
+        f"• {opponent_name}: <b>{opponent_total_stats['wins']}/{opponent_total_stats['losses']}/{opponent_total_stats['draws']}</b> (В/П/Н)\n\n"
         f"{footer()}"
     )
 
@@ -1512,6 +1561,29 @@ async def get_group_top_by_coins(chat_id: int, limit: int = 10):
     allowed_statuses = {"creator", "administrator", "member", "restricted"}
 
     for row in candidates:
+        try:
+            member = await bot.get_chat_member(chat_id, row["user_id"])
+            if member.status in allowed_statuses:
+                top.append(row)
+                if len(top) >= limit:
+                    break
+        except TelegramBadRequest:
+            continue
+        except Exception:
+            continue
+
+    return top
+
+
+async def get_group_top_by_race_wins(chat_id: int, limit: int = 10):
+    candidates = get_top_users_by_race_wins(500)
+    top = []
+    allowed_statuses = {"creator", "administrator", "member", "restricted"}
+
+    for row in candidates:
+        if int(row.get("race_wins", 0)) <= 0:
+            continue
+
         try:
             member = await bot.get_chat_member(chat_id, row["user_id"])
             if member.status in allowed_statuses:
@@ -5032,6 +5104,27 @@ async def top_command(message: Message):
     await message.answer(text, parse_mode="HTML")
 
 
+@dp.message(F.chat.type != "private", Command("toprace"))
+async def top_race_command(message: Message):
+    top = await get_group_top_by_race_wins(message.chat.id, 10)
+
+    text = f"{header()}\n\n🏁 <b>Топ по победам в гонках (эта группа)</b>\n\n"
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+
+    for i, row in enumerate(top, start=1):
+        place = medals.get(i, f"{i}.")
+        text += (
+            f"{place} <b>{row.get('first_name') or 'Игрок'}</b> — "
+            f"{row.get('race_wins', 0)} побед ({row.get('race_total', 0)} заездов)\n"
+        )
+
+    if not top:
+        text += "Пока нет информации.\n"
+
+    text += f"\n{footer()}"
+    await message.answer(text, parse_mode="HTML")
+
+
 @dp.message(F.chat.type != "private", Command("raceduel"))
 async def race_duel_group(message: Message):
     if not can_access_races(message.from_user.id):
@@ -5347,6 +5440,7 @@ async def main():
                 BotCommand(command="welcome", description="Приветствие новичков"),
                 BotCommand(command="balance", description="Узнать баланс"),
                 BotCommand(command="top", description="Топ игроков"),
+                BotCommand(command="toprace", description="Топ побед в гонках"),
                 BotCommand(command="raceduel", description="Дуэль-гонка (по reply)"),
             ],
             scope=BotCommandScopeAllGroupChats()
