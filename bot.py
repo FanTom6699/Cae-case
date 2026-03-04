@@ -49,6 +49,7 @@ from database import (
     get_user_rank_by_xp,
     get_xp_analytics,
     get_economy_analytics,
+    get_race_economy_analytics,
     search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
@@ -3775,8 +3776,10 @@ async def admin_economy_stats(call: CallbackQuery):
         return
 
     eco = get_economy_analytics(7)
+    race_eco = get_race_economy_analytics(7)
     faucet_lines = [f"• <b>{row['source']}</b>: +{fmt_coins(row['amount'])}" for row in eco.get("top_faucet_sources", [])]
     sink_lines = [f"• <b>{row['source']}</b>: -{fmt_coins(row['amount'])}" for row in eco.get("top_sink_sources", [])]
+    race_net = int(race_eco.get("net", 0))
 
     await call.message.edit_text(
         f"{header()}\n\n"
@@ -3788,6 +3791,12 @@ async def admin_economy_stats(call: CallbackQuery):
         f"{chr(10).join(faucet_lines) if faucet_lines else 'Пока нет данных'}\n\n"
         f"<b>Топ источников списания:</b>\n"
         f"{chr(10).join(sink_lines) if sink_lines else 'Пока нет данных'}\n\n"
+        "🏁 <b>Гонки (7 дней)</b>\n\n"
+        f"🏎 Заездов с победителем: <b>{format_number(race_eco['races_played'])}</b>\n"
+        f"👤 Уникальных гонщиков: <b>{format_number(race_eco['unique_racers'])}</b>\n"
+        f"🟢 Выдано за победы: <b>+{fmt_coins(race_eco['faucet'])}</b>\n"
+        f"🔴 Сожжено на тюнинге: <b>-{fmt_coins(race_eco['sink'])}</b>\n"
+        f"⚖️ Чистый баланс гонок: <b>{'+' if race_net > 0 else ''}{format_number(race_net)} Coins</b>\n\n"
         f"{footer()}",
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[

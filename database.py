@@ -1132,6 +1132,65 @@ def get_economy_analytics(days=7):
     }
 
 
+def get_race_economy_analytics(days=7):
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cutoff_ts = datetime.utcnow().timestamp() - max(1, int(days)) * 86400
+        cutoff_iso = datetime.utcfromtimestamp(cutoff_ts).isoformat()
+
+        cur.execute(
+                """
+                SELECT COALESCE(COUNT(*), 0), COALESCE(SUM(amount), 0)
+                FROM economy_events
+                WHERE created_at >= ?
+                    AND amount > 0
+                    AND source LIKE 'race_duel_win_%'
+                """,
+                (cutoff_iso,)
+        )
+        races_played, race_faucet = cur.fetchone()
+
+        cur.execute(
+                """
+                SELECT COALESCE(SUM(-amount), 0)
+                FROM economy_events
+                WHERE created_at >= ?
+                    AND amount < 0
+                    AND source LIKE 'race_tune_%'
+                """,
+                (cutoff_iso,)
+        )
+        race_sink = int(cur.fetchone()[0] or 0)
+
+        cur.execute(
+                """
+                SELECT COALESCE(COUNT(DISTINCT user_id), 0)
+                FROM economy_events
+                WHERE created_at >= ?
+                    AND user_id IS NOT NULL
+                    AND (
+                        source LIKE 'race_duel_win_%'
+                        OR source LIKE 'race_tune_%'
+                    )
+                """,
+                (cutoff_iso,)
+        )
+        unique_racers = int(cur.fetchone()[0] or 0)
+
+        conn.close()
+
+        race_faucet = int(race_faucet or 0)
+        races_played = int(races_played or 0)
+        return {
+                "races_played": races_played,
+                "unique_racers": unique_racers,
+                "faucet": race_faucet,
+                "sink": race_sink,
+                "net": race_faucet - race_sink,
+        }
+
+
 def search_users_by_nick(query, limit=20):
     conn = get_connection()
     cur = conn.cursor()
