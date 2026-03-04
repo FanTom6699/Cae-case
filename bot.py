@@ -737,15 +737,29 @@ def race_duel_initiator_rate_limit_ok(user_id: int):
         if remaining > 0:
             return False, remaining
 
-    RACE_DUEL_LAST_INIT_AT[int(user_id)] = now
     return True, 0
 
 
-def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenger_name: str, opponent_name: str) -> str:
+def mark_race_duel_initiator_used(user_id: int):
+    RACE_DUEL_LAST_INIT_AT[int(user_id)] = time.monotonic()
+
+
+def build_group_duel_result_text(
+    challenger_id: int,
+    opponent_id: int,
+    challenger_name: str,
+    opponent_name: str,
+    with_meta: bool = False,
+):
+    def _pack(text: str, duel_played: bool = False):
+        if with_meta:
+            return text, duel_played
+        return text
+
     challenger_user = get_user(challenger_id)
     opponent_user = get_user(opponent_id)
     if not challenger_user or not opponent_user:
-        return (
+        return _pack(
             f"{header()}\n\n"
             "⛔ Дуэль отменена: один из игроков не зарегистрирован в боте.\n\n"
             f"{footer()}"
@@ -754,7 +768,7 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
     challenger_car = get_user_race_car_for_duel(challenger_id)
     opponent_car = get_user_race_car_for_duel(opponent_id)
     if not challenger_car or not opponent_car:
-        return (
+        return _pack(
             f"{header()}\n\n"
             "🚘 Дуэль отменена: у одного из игроков нет машины в гараже.\n\n"
             f"{footer()}"
@@ -776,7 +790,7 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
     opponent_class = str(opponent_profile.get("class", "D")).upper()
 
     if challenger_class != opponent_class:
-        return (
+        return _pack(
             f"{header()}\n\n"
             "⛔ У вас разные классы автомобиля — дуэль невозможна.\n\n"
             f"👤 {challenger_name}: <b>{challenger_car_name}</b> — класс <b>{challenger_class}</b>\n"
@@ -796,6 +810,7 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
 
     race_result = simulate_race(challenger_stats_on_map, opponent_stats_on_map, ticks_total=9)
     winner = race_result.get("winner")
+    frames = race_result.get("frames") or []
 
     challenger_power = (
         0.55 * challenger_stats_on_map["speed"]
@@ -832,6 +847,94 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
         explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {opponent_name}"
     else:
         explain_line = "Ключевой фактор: <b>почти равные характеристики</b>"
+
+    tempo_gap = challenger_power - opponent_power
+    if tempo_gap > 0:
+        tempo_line = f"• По статам: {challenger_name} сильнее на <b>{abs(tempo_gap):.1f}</b> балла"
+    elif tempo_gap < 0:
+        tempo_line = f"• По статам: {opponent_name} сильнее на <b>{abs(tempo_gap):.1f}</b> балла"
+    else:
+        tempo_line = "• По статам: силы машин равны"
+
+    if frames:
+        start_diff = float(frames[0].get("player_progress", 0.0)) - float(frames[0].get("opponent_progress", 0.0))
+        if abs(start_diff) < 0.25:
+            start_line = "• Старт: без явного лидера"
+        elif start_diff > 0:
+            start_line = f"• Старт: {challenger_name} начал лучше и вёл на <b>{abs(start_diff):.1f}%</b>"
+        else:
+            start_line = f"• Старт: {opponent_name} начал лучше и вёл на <b>{abs(start_diff):.1f}%</b>"
+
+        peak_frame = max(
+            frames,
+            key=lambda frame: abs(
+                float(frame.get("player_progress", 0.0)) - float(frame.get("opponent_progress", 0.0))
+            ),
+        )
+        peak_gap = float(peak_frame.get("player_progress", 0.0)) - float(peak_frame.get("opponent_progress", 0.0))
+        if abs(peak_gap) < 0.25:
+            peak_line = "• Самый большой отрыв: минимальный (почти паритет)"
+        elif peak_gap > 0:
+            peak_line = f"• Самый большой отрыв: {challenger_name} вёл на <b>{abs(peak_gap):.1f}%</b>"
+        else:
+            peak_line = f"• Самый большой отрыв: {opponent_name} вёл на <b>{abs(peak_gap):.1f}%</b>"
+    else:
+        start_line = "• Старт: данных нет"
+        peak_line = "• Самый большой отрыв: данных нет"
+
+    player_time_s = float(race_result.get("player_time_s", 0.0))
+    opponent_time_s = float(race_result.get("opponent_time_s", 0.0))
+    time_gap = abs(player_time_s - opponent_time_s)
+    if winner == "player":
+        finish_line = f"• Финиш: {challenger_name} быстрее на <b>{time_gap:.2f} c</b>"
+    elif winner == "opponent":
+        finish_line = f"• Финиш: {opponent_name} быстрее на <b>{time_gap:.2f} c</b>"
+    else:
+        finish_line = "• Финиш: фотофиниш, разница минимальна"
+
+    track_mods = selected_map.get("modifiers", {}) if isinstance(selected_map.get("modifiers", {}), dict) else {}
+    mod_labels = {
+        "speed": "скорость",
+        "accel": "разгон",
+        "grip": "сцепление",
+        "reliability": "надёжность",
+    }
+    active_modifiers = []
+    for field, label in mod_labels.items():
+        modifier = float(track_mods.get(field, 1.0))
+        diff_pct = (modifier - 1.0) * 100.0
+        if abs(diff_pct) >= 0.5:
+            active_modifiers.append(f"{label} {'+' if diff_pct > 0 else ''}{diff_pct:.0f}%")
+
+    if active_modifiers:
+        track_line = f"• Влияние трека: {', '.join(active_modifiers)}"
+    else:
+        track_line = "• Влияние трека: нейтральный профиль"
+
+    equal_stats = speed_diff == 0 and accel_diff == 0 and stability_diff == 0
+    upset = (winner == "player" and tempo_gap < 0) or (winner == "opponent" and tempo_gap > 0)
+    if equal_stats:
+        randomness_line = "• Статы равны — в таком случае исход часто решает удача в конкретном заезде"
+    elif upset:
+        randomness_line = "• Победа при более слабых статах — в этом заезде удача была на стороне победителя"
+    else:
+        randomness_line = ""
+
+    near_equal_stats = (
+        abs(speed_diff) <= 1
+        and abs(accel_diff) <= 1
+        and abs(stability_diff) <= 2
+        and abs(tempo_gap) <= 0.8
+    )
+    if equal_stats:
+        chance_line = "• Оценка перед стартом: шансы были практически <b>50/50</b>"
+        parity_explain_line = "⚖️ <b>Пояснение:</b> машины равны по характеристикам, поэтому победитель может определиться только на последних метрах."
+    elif near_equal_stats:
+        chance_line = "• Оценка перед стартом: шансы были близки к <b>50/50</b>"
+        parity_explain_line = "⚖️ <b>Пояснение:</b> машины почти равны, поэтому в одном заезде может победить один, а в следующем — другой."
+    else:
+        chance_line = ""
+        parity_explain_line = ""
 
     reward_line = ""
     rank_line = ""
@@ -874,7 +977,7 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
     challenger_total_stats = get_user_race_stats(challenger_id)
     opponent_total_stats = get_user_race_stats(opponent_id)
 
-    return (
+    return _pack(
         f"{header()}\n\n"
         "🏁 <b>Групповая дуэль</b>\n\n"
         f"📊 Класс заезда: <b>{challenger_class}</b>\n"
@@ -889,9 +992,18 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
         f"• {challenger_name}: <b>{race_result['player_time_s']:.2f} c</b>\n"
         f"• {opponent_name}: <b>{race_result['opponent_time_s']:.2f} c</b>\n\n"
         "<b>Сравнение характеристик:</b>\n"
-        f"• {challenger_name}: темп <b>{challenger_power:.1f}</b> | ⚡{challenger_stats_on_map['speed']} 🚀{challenger_stats_on_map['accel']} 🛞{challenger_stats_on_map['grip']} 🛡{challenger_stats_on_map['reliability']}\n"
-        f"• {opponent_name}: темп <b>{opponent_power:.1f}</b> | ⚡{opponent_stats_on_map['speed']} 🚀{opponent_stats_on_map['accel']} 🛞{opponent_stats_on_map['grip']} 🛡{opponent_stats_on_map['reliability']}\n"
+        f"• {challenger_name}: общая сила <b>{challenger_power:.1f}</b> | ⚡{challenger_stats_on_map['speed']} 🚀{challenger_stats_on_map['accel']} 🛞{challenger_stats_on_map['grip']} 🛡{challenger_stats_on_map['reliability']}\n"
+        f"• {opponent_name}: общая сила <b>{opponent_power:.1f}</b> | ⚡{opponent_stats_on_map['speed']} 🚀{opponent_stats_on_map['accel']} 🛞{opponent_stats_on_map['grip']} 🛡{opponent_stats_on_map['reliability']}\n"
         f"• {explain_line}\n\n"
+        "<b>Почему такой результат:</b>\n"
+        f"{tempo_line}\n"
+        f"{start_line}\n"
+        f"{peak_line}\n"
+        f"{finish_line}\n"
+        f"{track_line}\n"
+        f"{(chance_line + chr(10)) if chance_line else ''}"
+        f"{(randomness_line + chr(10)) if randomness_line else ''}\n"
+        f"{(parity_explain_line + chr(10) + chr(10)) if parity_explain_line else ''}"
         f"{result_line}\n"
         f"{reward_line}"
         f"{rank_line}"
@@ -900,7 +1012,7 @@ def build_group_duel_result_text(challenger_id: int, opponent_id: int, challenge
         f"• {challenger_name}: <b>{challenger_total_stats['wins']}/{challenger_total_stats['losses']}/{challenger_total_stats['draws']}</b> (В/П/Н)\n"
         f"• {opponent_name}: <b>{opponent_total_stats['wins']}/{opponent_total_stats['losses']}/{opponent_total_stats['draws']}</b> (В/П/Н)\n\n"
         f"{footer()}"
-    )
+    , duel_played=True)
 
 
 async def expire_race_duel_invite_later(chat_id: int, message_id: int, timeout_seconds: int):
@@ -1014,9 +1126,9 @@ async def _publish_private_race_result(entry_a: dict, entry_b: dict):
     )
     result_kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔁 Подбор снова", callback_data="races:vs_bot")],
-            [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
-            [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            [InlineKeyboardButton(text="🔁 Подбор снова", callback_data="races:vs_bot:new")],
+            [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats:new")],
+            [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races:new")],
         ]
     )
 
@@ -2054,39 +2166,21 @@ async def more_menu(call: CallbackQuery):
     await call.answer()
 
 
-@dp.callback_query(F.data == "menu:races")
-async def races_menu(call: CallbackQuery):
-    if not can_access_races(call.from_user.id):
-        await call.answer("⛔ Раздел в тесте", show_alert=True)
-        return
-
-    if call.message.chat.type != "private":
-        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
-        await call.answer()
-        await call.message.answer(
-            f"{header()}\n\n"
-            "🏁 Гонки доступны только в ЛС\n\n"
-            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
-            f"{footer()}",
-            parse_mode="HTML",
-        )
-        return
-
-    user = get_user(call.from_user.id)
+def _build_races_menu_view(user_id: int):
+    user = get_user(user_id)
     if not user:
-        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
-        return
+        return None, None
 
-    cars = get_user_garage(call.from_user.id)
+    cars = get_user_garage(user_id)
     cars_count = len(cars)
     race_ready_text = "✅ Готов к заездам" if cars_count > 0 else "⚠️ Нужна хотя бы 1 машина"
     selected_car = None
     selected_card = None
-    selected_car_id = RACE_SELECTED_CAR_ID.get(call.from_user.id)
+    selected_car_id = RACE_SELECTED_CAR_ID.get(user_id)
     if selected_car_id:
         selected_car = get_car_by_id(selected_car_id)
-        if not selected_car or selected_car.get("user_id") != call.from_user.id:
-            RACE_SELECTED_CAR_ID.pop(call.from_user.id, None)
+        if not selected_car or selected_car.get("user_id") != user_id:
+            RACE_SELECTED_CAR_ID.pop(user_id, None)
             selected_car = None
         else:
             selected_card = CARDS.get(selected_car.get("name", ""), {})
@@ -2117,7 +2211,7 @@ async def races_menu(call: CallbackQuery):
             "• 📈 LVL тюнинга: <b>—</b>"
         )
 
-    await call.message.edit_text(
+    text = (
         f"{header()}\n\n"
         "🏁 <b>Гонки</b>\n\n"
         "Меню режима гонок.\n"
@@ -2126,21 +2220,66 @@ async def races_menu(call: CallbackQuery):
         f"{selected_line}\n"
         f"{selected_stats_line}\n"
         f"{race_ready_text}\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="🚘 Выбрать машину", callback_data="races:pick:classes")],
-                [InlineKeyboardButton(text="🔎 Подбор", callback_data="races:vs_bot")],
-                [InlineKeyboardButton(text="⚙️ Тюнинг", callback_data="races:tune")],
-                [InlineKeyboardButton(text="❓ Как играть", callback_data="races:howto")],
-                [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
-                [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
-                [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
-            ]
-        ),
-        parse_mode="HTML",
+        f"{footer()}"
     )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🚘 Выбрать машину", callback_data="races:pick:classes")],
+            [InlineKeyboardButton(text="🔎 Подбор", callback_data="races:vs_bot")],
+            [InlineKeyboardButton(text="⚙️ Тюнинг", callback_data="races:tune")],
+            [InlineKeyboardButton(text="❓ Как играть", callback_data="races:howto")],
+            [InlineKeyboardButton(text="🚗 Гараж", callback_data="menu:garage:0")],
+            [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
+            [InlineKeyboardButton(text="🔙 К меню", callback_data="start")],
+        ]
+    )
+    return text, kb
+
+
+@dp.callback_query(F.data == "menu:races")
+async def races_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        bot_link = f"https://t.me/{BOT_USERNAME}?start" if BOT_USERNAME else "https://t.me/CarCaseBot?start"
+        await call.answer()
+        await call.message.answer(
+            f"{header()}\n\n"
+            "🏁 Гонки доступны только в ЛС\n\n"
+            f"<a href='{bot_link}'>Открыть бота</a>\n\n"
+            f"{footer()}",
+            parse_mode="HTML",
+        )
+        return
+
+    text, kb = _build_races_menu_view(call.from_user.id)
+    if not text:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
+
+
+@dp.callback_query(F.data == "menu:races:new")
+async def races_menu_new_message(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    text, kb = _build_races_menu_view(call.from_user.id)
+    if not text:
+        await call.answer("⛔ Профиль не найден. Нажми /start", show_alert=True)
+        return
+
+    await call.message.answer(text, reply_markup=kb, parse_mode="HTML")
+    await call.answer("✅ Открыто новым сообщением")
 
 
 @dp.callback_query(F.data == "races:howto")
@@ -2169,10 +2308,10 @@ async def races_howto(call: CallbackQuery):
         "• Игрок принимает вызов через кнопки Да/Нет\n"
         "• Дуэль доступна только при одинаковом классе машин\n\n"
         "<b>4) Характеристики (кратко)</b>\n"
-        "• ⚡ <b>Скорость</b> — даёт высокий общий темп на дистанции\n"
+        "• ⚡ <b>Скорость</b> — помогает быстрее проходить дистанцию\n"
         "• 🚀 <b>Разгон</b> — помогает быстрее набирать ход и стартовать\n"
         "• 🛞 <b>Сцепление</b> — стабильнее проходишь сложные участки\n"
-        "• 🛡 <b>Надёжность</b> — меньше просадок и случайных потерь темпа\n\n"
+        "• 🛡 <b>Надёжность</b> — меньше просадок и случайных потерь скорости\n\n"
         "<b>5) Почему стоит качать тюнинг</b>\n"
         "• Улучшает шанс на победу против равного класса\n"
         "• Позволяет точечно усилить слабую сторону машины\n"
@@ -2377,17 +2516,8 @@ async def race_pick_car_select(call: CallbackQuery):
     )
 
 
-@dp.callback_query(F.data == "races:stats")
-async def race_stats_menu(call: CallbackQuery):
-    if not can_access_races(call.from_user.id):
-        await call.answer("⛔ Раздел в тесте", show_alert=True)
-        return
-
-    if call.message.chat.type != "private":
-        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
-        return
-
-    stats = get_user_race_stats(call.from_user.id)
+def _build_race_stats_view(user_id: int, back_callback: str = "menu:races"):
+    stats = get_user_race_stats(user_id)
     total = int(stats.get("total", 0))
     wins = int(stats.get("wins", 0))
     losses = int(stats.get("losses", 0))
@@ -2405,7 +2535,7 @@ async def race_stats_menu(call: CallbackQuery):
     else:
         next_rank_line = "🎯 Следующий ранг: <b>MAX</b>\n"
 
-    await call.message.edit_text(
+    text = (
         f"{header()}\n\n"
         "📊 <b>Статистика гонок</b>\n\n"
         f"🏷 Ранг: <b>{current_rank['emoji']} {current_rank['name']}</b>\n"
@@ -2417,15 +2547,44 @@ async def race_stats_menu(call: CallbackQuery):
         f"😵 Поражений: <b>{losses}</b>\n"
         f"🤝 Ничьих: <b>{draws}</b>\n"
         f"📈 Винрейт: <b>{winrate:.1f}%</b>\n\n"
-        f"{footer()}",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
-            ]
-        ),
+        f"{footer()}"
     )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔙 К гонкам", callback_data=back_callback)],
+        ]
+    )
+    return text, kb
+
+
+@dp.callback_query(F.data == "races:stats")
+async def race_stats_menu(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    text, kb = _build_race_stats_view(call.from_user.id)
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=kb)
     await call.answer()
+
+
+@dp.callback_query(F.data == "races:stats:new")
+async def race_stats_menu_new_message(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    text, kb = _build_race_stats_view(call.from_user.id)
+    await call.message.answer(text, parse_mode="HTML", reply_markup=kb)
+    await call.answer("✅ Открыто новым сообщением")
 
 
 async def show_race_tuning_menu(call: CallbackQuery, notice: str = ""):
@@ -2573,6 +2732,34 @@ async def race_tune_upgrade(call: CallbackQuery):
         ),
     )
     await call.answer("✅ Тюнинг применён")
+
+
+@dp.callback_query(F.data == "races:vs_bot:new")
+async def race_vs_bot_new_message(call: CallbackQuery):
+    if not can_access_races(call.from_user.id):
+        await call.answer("⛔ Раздел в тесте", show_alert=True)
+        return
+
+    if call.message.chat.type != "private":
+        await call.answer("⛔ Доступно только в ЛС", show_alert=True)
+        return
+
+    await call.message.answer(
+        f"{header()}\n\n"
+        "🔁 <b>Новый заезд</b>\n\n"
+        "Отчёт о прошлой гонке сохранён выше.\n"
+        "Нажми кнопку ниже, чтобы запустить новый подбор.\n\n"
+        f"{footer()}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="🔎 Запустить подбор", callback_data="races:vs_bot")],
+                [InlineKeyboardButton(text="📊 Статистика гонок", callback_data="races:stats")],
+                [InlineKeyboardButton(text="🔙 К гонкам", callback_data="menu:races")],
+            ]
+        ),
+    )
+    await call.answer("✅ Открыто новым сообщением")
 
 
 @dp.callback_query(F.data == "races:vs_bot")
@@ -5301,12 +5488,17 @@ async def race_duel_decision(call: CallbackQuery):
 
     duel_state["status"] = "accepted"
     RACE_DUEL_PENDING.pop(state_key, None)
-    result_text = build_group_duel_result_text(
+    result_text, duel_played = build_group_duel_result_text(
         challenger_id=challenger_id,
         opponent_id=opponent_id,
         challenger_name=challenger_name,
         opponent_name=opponent_name,
+        with_meta=True,
     )
+
+    if duel_played:
+        mark_race_duel_initiator_used(challenger_id)
+
     await call.message.edit_text(result_text, parse_mode="HTML")
     await call.answer("✅ Дуэль принята")
 
