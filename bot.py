@@ -154,6 +154,7 @@ RACE_MAPS = load_race_maps()
 
 FREE_CASE_COOLDOWN = timedelta(hours=4)
 PAID_CASE_COOLDOWN = timedelta(seconds=int(os.getenv("PAID_CASE_COOLDOWN_SECONDS", "120")))
+PAID_CASE_PRICE = int(os.getenv("PAID_CASE_PRICE", "45000"))
 FREE_CASE_BONUS_COINS = int(os.getenv("FREE_CASE_BONUS_COINS", "0"))
 DAILY_SELL_LIMIT = int(os.getenv("DAILY_SELL_LIMIT", "5"))
 GARAGE_PAGE_SIZE = 5
@@ -193,24 +194,24 @@ RARITY_RU = {
 }
 
 SELL_PRICE_MULTIPLIER = {
-    "Common": 0.45,
-    "Rare": 0.50,
-    "Epic": 0.06,
-    "Legendary": 0.04,
+    "Common": 0.40,
+    "Rare": 0.44,
+    "Epic": 0.05,
+    "Legendary": 0.035,
 }
 
 SELL_PRICE_BOUNDS = {
-    "Common": (2500, 12000),
-    "Rare": (13000, 28000),
-    "Epic": (30000, 90000),
-    "Legendary": (100000, 260000),
+    "Common": (2200, 10000),
+    "Rare": (11000, 24000),
+    "Epic": (26000, 78000),
+    "Legendary": (85000, 220000),
 }
 
 DAILY_TASKS = {
-    "free_case": {"title": "Открыть бесплатный кейс", "target": 1, "reward": 3000},
-    "buy_standard": {"title": "Купить платный кейс", "target": 1, "reward": 5000},
-    "sell_car": {"title": "Продать машину", "target": 1, "reward": 4000},
-    "get_rare_plus": {"title": "Получить машину редкости Редкая и выше", "target": 1, "reward": 7000},
+    "free_case": {"title": "Открыть бесплатный кейс", "target": 1, "reward": 2000},
+    "buy_standard": {"title": "Купить платный кейс", "target": 1, "reward": 3200},
+    "sell_car": {"title": "Продать машину", "target": 1, "reward": 2600},
+    "get_rare_plus": {"title": "Получить машину редкости Редкая и выше", "target": 1, "reward": 4200},
 }
 
 DAILY_TASK_XP = {
@@ -221,17 +222,17 @@ DAILY_TASK_XP = {
 }
 
 STREAK_REWARDS = {
-    1: 2000,
-    2: 3000,
-    3: 4000,
-    4: 5000,
-    5: 7000,
-    6: 9000,
-    7: 12000,
+    1: 1200,
+    2: 1800,
+    3: 2500,
+    4: 3200,
+    5: 4200,
+    6: 5400,
+    7: 7000,
 }
 
-GROUP_WEEKLY_REWARDS = [50000, 30000, 20000]
-GLOBAL_WEEKLY_REWARDS = [100000, 70000, 50000]
+GROUP_WEEKLY_REWARDS = [30000, 20000, 12000]
+GLOBAL_WEEKLY_REWARDS = [60000, 40000, 25000]
 
 XP_GAIN_BY_RARITY = {
     "Common": int(os.getenv("XP_COMMON", "15")),
@@ -240,10 +241,10 @@ XP_GAIN_BY_RARITY = {
     "Legendary": int(os.getenv("XP_LEGENDARY", "220")),
 }
 DUPLICATE_REWARD_MULTIPLIER = {
-    "Common": float(os.getenv("DUPLICATE_MULT_COMMON", "0.21")),  # -40%
-    "Rare": float(os.getenv("DUPLICATE_MULT_RARE", "0.24")),      # -40%
-    "Epic": float(os.getenv("DUPLICATE_MULT_EPIC", "0.27")),      # -40%
-    "Legendary": float(os.getenv("DUPLICATE_MULT_LEGENDARY", "0.30")), # -40%
+    "Common": float(os.getenv("DUPLICATE_MULT_COMMON", "0.15")),
+    "Rare": float(os.getenv("DUPLICATE_MULT_RARE", "0.17")),
+    "Epic": float(os.getenv("DUPLICATE_MULT_EPIC", "0.19")),
+    "Legendary": float(os.getenv("DUPLICATE_MULT_LEGENDARY", "0.22")),
 }
 LEVEL_BASE_XP = int(os.getenv("LEVEL_BASE_XP", "100"))
 LEVEL_ROUND_STEP = int(os.getenv("LEVEL_ROUND_STEP", "5"))
@@ -3727,9 +3728,7 @@ async def admin_panel(call: CallbackQuery):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
-            [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
-            [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
+            [InlineKeyboardButton(text="📊 Вся аналитика", callback_data="admin:all_analytics")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
@@ -3769,9 +3768,7 @@ async def admin_command(message: Message):
 
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📈 Статистика бота", callback_data="admin:stats")],
-            [InlineKeyboardButton(text="⭐ XP-аналитика", callback_data="admin:xp_stats")],
-            [InlineKeyboardButton(text="💹 Экономика", callback_data="admin:economy")],
+            [InlineKeyboardButton(text="📊 Вся аналитика", callback_data="admin:all_analytics")],
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
@@ -3795,97 +3792,144 @@ async def admin_command(message: Message):
     )
 
 
-@dp.callback_query(F.data == "admin:stats")
-async def admin_stats(call: CallbackQuery):
+@dp.callback_query(F.data.startswith("admin:all_analytics"))
+async def admin_all_analytics(call: CallbackQuery):
     if not is_owner(call.from_user.id):
         await call.answer("⛔ Доступ запрещён", show_alert=True)
         return
+
+    full_mode = str(call.data or "") == "admin:all_analytics:full"
 
     stats = get_admin_summary_stats()
-    await call.message.edit_text(
-        f"{header()}\n\n"
-        "📈 <b>Статистика бота</b>\n\n"
-        f"👥 Пользователей: <b>{stats['users_count']}</b>\n"
-        f"🚗 Машин в гаражах: <b>{stats['garage_count']}</b>\n"
-        f"📅 Записей дневок: <b>{stats['daily_rows']}</b>\n"
-        f"🏁 Записей недельки: <b>{stats['weekly_rows']}</b>\n"
-        f"🆔 Admin ID: <code>{ADMIN_USER_ID}</code>\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
-                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
-            ]
-        ),
-        parse_mode="HTML",
-    )
-    await call.answer()
-
-
-@dp.callback_query(F.data == "admin:xp_stats")
-async def admin_xp_stats(call: CallbackQuery):
-    if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-
     xp_stats = get_xp_analytics(7)
-    source_lines = []
-    for row in xp_stats.get("top_sources", []):
-        source_lines.append(f"• <b>{row['source']}</b>: {fmt_xp(row['amount'])}")
-
-    await call.message.edit_text(
-        f"{header()}\n\n"
-        "⭐ <b>XP-аналитика (7 дней)</b>\n\n"
-        f"👥 Пользователей: <b>{format_number(xp_stats['users_count'])}</b>\n"
-        f"🧮 Общий XP: <b>{fmt_xp(xp_stats['total_xp'])}</b>\n"
-        f"📊 Средний XP: <b>{format_number(round(xp_stats['avg_xp']))}</b>\n"
-        f"🏆 Максимальный XP: <b>{fmt_xp(xp_stats['max_xp'])}</b>\n"
-        f"📈 Начислено за 7 дней: <b>{fmt_xp(xp_stats['xp_last_days'])}</b>\n\n"
-        f"<b>Топ источников XP:</b>\n"
-        f"{chr(10).join(source_lines) if source_lines else 'Пока нет данных'}\n\n"
-        f"{footer()}",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
-                [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
-            ]
-        ),
-        parse_mode="HTML",
-    )
-    await call.answer()
-
-
-@dp.callback_query(F.data == "admin:economy")
-async def admin_economy_stats(call: CallbackQuery):
-    if not is_owner(call.from_user.id):
-        await call.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-
     eco = get_economy_analytics(7)
     race_eco = get_race_economy_analytics(7)
-    faucet_lines = [f"• <b>{row['source']}</b>: +{fmt_coins(row['amount'])}" for row in eco.get("top_faucet_sources", [])]
-    sink_lines = [f"• <b>{row['source']}</b>: -{fmt_coins(row['amount'])}" for row in eco.get("top_sink_sources", [])]
+
+    xp_source_lines = [
+        f"• <b>{row['source']}</b>: {fmt_xp(row['amount'])}"
+        for row in xp_stats.get("top_sources", [])
+    ]
+    faucet_lines = [
+        f"• <b>{row['source']}</b>: +{fmt_coins(row['amount'])}"
+        for row in eco.get("top_faucet_sources", [])
+    ]
+    sink_lines = [
+        f"• <b>{row['source']}</b>: -{fmt_coins(row['amount'])}"
+        for row in eco.get("top_sink_sources", [])
+    ]
+
+    users_count = max(1, int(stats.get("users_count", 0)))
+    eco_net = int(eco.get("net", 0))
+    race_faucet = int(race_eco.get("faucet", 0))
+    race_sink = int(race_eco.get("sink", 0))
     race_net = int(race_eco.get("net", 0))
+    race_count = int(race_eco.get("races_played", 0))
+    race_unique = int(race_eco.get("unique_racers", 0))
+    net_per_user = eco_net / users_count
+
+    recommendations = []
+    if eco_net > 0:
+        recommendations.append(
+            f"• <b>Инфляция Coins</b>: net +{format_number(eco_net)}. Снизь faucet или усили sink на ~<b>{format_number(max(1, int(eco_net * 0.6)))}</b> Coins/нед."
+        )
+    elif eco_net < 0:
+        recommendations.append(
+            f"• <b>Дефляция Coins</b>: net {format_number(eco_net)}. Ослабь sink или добавь faucet на ~<b>{format_number(max(1, int(abs(eco_net) * 0.4)))}</b> Coins/нед."
+        )
+    else:
+        recommendations.append("• <b>Баланс Coins</b>: net около нуля, держи текущие коэффициенты.")
+
+    if race_count < max(8, users_count // 2):
+        recommendations.append(
+            "• <b>Низкая активность гонок</b>: добавь daily-задачу на гонки и маленькую награду за участие, чтобы поднять вовлечённость."
+        )
+
+    if race_count > 0 and race_sink > race_faucet * 8:
+        recommendations.append(
+            "• <b>Гонки слишком дорогие</b>: тюнинг сильно дороже побед. Добавь утешительную выплату за заезд/поражение или снизь стоимость ранних апгрейдов."
+        )
+
+    if net_per_user > 15000:
+        recommendations.append(
+            "• <b>Высокий приток на игрока</b>: увеличь цену платного кейса ещё на 10–15% или снизь награды стрика/дневок на 10%."
+        )
+
+    recommendations_text = "\n".join(recommendations[:4]) if recommendations else "• Данных пока мало для уверенных рекомендаций."
+    recommendations_compact = "\n".join(recommendations[:2]) if recommendations else "• Данных пока мало для уверенных рекомендаций."
+
+    xp_top_line = xp_source_lines[0] if xp_source_lines else "• Пока нет данных"
+    faucet_top_line = faucet_lines[0] if faucet_lines else "• Пока нет данных"
+    sink_top_line = sink_lines[0] if sink_lines else "• Пока нет данных"
+
+    if full_mode:
+        analytics_text = (
+            f"{header()}\n\n"
+            "📊 <b>Сводная аналитика (7 дней) — полный режим</b>\n\n"
+            "<b>1) База проекта</b>\n"
+            "ℹ️ Отвечает за общий масштаб и заполненность БД.\n"
+            f"👥 Пользователей: <b>{format_number(stats['users_count'])}</b>\n"
+            f"🚗 Машин в гаражах: <b>{format_number(stats['garage_count'])}</b>\n"
+            f"📅 Записей дневок: <b>{format_number(stats['daily_rows'])}</b>\n"
+            f"🏁 Записей недельки: <b>{format_number(stats['weekly_rows'])}</b>\n\n"
+            "<b>2) XP-прогресс</b>\n"
+            "ℹ️ Отвечает за скорость прокачки игроков.\n"
+            f"🧮 Общий XP: <b>{fmt_xp(xp_stats['total_xp'])}</b>\n"
+            f"📊 Средний XP: <b>{format_number(round(xp_stats['avg_xp']))}</b>\n"
+            f"🏆 Максимальный XP: <b>{fmt_xp(xp_stats['max_xp'])}</b>\n"
+            f"📈 Начислено за 7 дней: <b>{fmt_xp(xp_stats['xp_last_days'])}</b>\n"
+            f"<b>Топ источников XP:</b>\n{chr(10).join(xp_source_lines) if xp_source_lines else 'Пока нет данных'}\n\n"
+            "<b>3) Экономика Coins</b>\n"
+            "ℹ️ Отвечает за инфляцию/дефляцию валюты.\n"
+            f"🟢 Выдано: <b>+{fmt_coins(eco['faucet'])}</b>\n"
+            f"🔴 Сожжено: <b>-{fmt_coins(eco['sink'])}</b>\n"
+            f"⚖️ Чистый баланс: <b>{'+' if eco_net > 0 else ''}{format_number(eco_net)} Coins</b>\n"
+            f"👤 Net на пользователя: <b>{'+' if net_per_user > 0 else ''}{format_number(int(round(net_per_user)))} Coins</b>\n"
+            f"<b>Топ источников выдачи:</b>\n{chr(10).join(faucet_lines) if faucet_lines else 'Пока нет данных'}\n"
+            f"<b>Топ источников списания:</b>\n{chr(10).join(sink_lines) if sink_lines else 'Пока нет данных'}\n\n"
+            "<b>4) Гонки</b>\n"
+            "ℹ️ Отвечает за вовлечённость в режим гонок и вклад гонок в экономику.\n"
+            f"🏎 Заездов с победителем: <b>{format_number(race_count)}</b>\n"
+            f"👤 Уникальных гонщиков: <b>{format_number(race_unique)}</b>\n"
+            f"🟢 Выдано за победы: <b>+{fmt_coins(race_faucet)}</b>\n"
+            f"🔴 Сожжено на тюнинге: <b>-{fmt_coins(race_sink)}</b>\n"
+            f"⚖️ Чистый баланс гонок: <b>{'+' if race_net > 0 else ''}{format_number(race_net)} Coins</b>\n\n"
+            "<b>5) Что добавить для нормального баланса</b>\n"
+            f"{recommendations_text}\n\n"
+            f"{footer()}"
+        )
+        toggle_button = InlineKeyboardButton(text="🔽 Свернуть", callback_data="admin:all_analytics")
+    else:
+        analytics_text = (
+            f"{header()}\n\n"
+            "📊 <b>Сводная аналитика (7 дней) — коротко</b>\n\n"
+            "ℹ️ Показывает ключевые метрики. Нажми <b>Развернуть</b> для детального отчёта.\n\n"
+            "<b>1) База проекта</b>\n"
+            f"👥 Пользователей: <b>{format_number(stats['users_count'])}</b> | 🚗 Машин: <b>{format_number(stats['garage_count'])}</b>\n"
+            f"📅 Дневки: <b>{format_number(stats['daily_rows'])}</b> | 🏁 Недельки: <b>{format_number(stats['weekly_rows'])}</b>\n\n"
+            "<b>2) XP-прогресс</b>\n"
+            f"🧮 Общий XP: <b>{fmt_xp(xp_stats['total_xp'])}</b> | 📈 За 7 дней: <b>{fmt_xp(xp_stats['xp_last_days'])}</b>\n"
+            f"🏆 Пик XP: <b>{fmt_xp(xp_stats['max_xp'])}</b>\n"
+            f"<b>Топ источник XP:</b> {xp_top_line}\n\n"
+            "<b>3) Экономика Coins</b>\n"
+            f"🟢 Выдано: <b>+{fmt_coins(eco['faucet'])}</b> | 🔴 Сожжено: <b>-{fmt_coins(eco['sink'])}</b>\n"
+            f"⚖️ Net: <b>{'+' if eco_net > 0 else ''}{format_number(eco_net)} Coins</b> | 👤 На пользователя: <b>{'+' if net_per_user > 0 else ''}{format_number(int(round(net_per_user)))}</b>\n"
+            f"<b>Главный faucet:</b> {faucet_top_line}\n"
+            f"<b>Главный sink:</b> {sink_top_line}\n\n"
+            "<b>4) Гонки</b>\n"
+            f"🏎 Заездов: <b>{format_number(race_count)}</b> | 👤 Гонщиков: <b>{format_number(race_unique)}</b>\n"
+            f"🟢 Победы: <b>+{fmt_coins(race_faucet)}</b> | 🔴 Тюнинг: <b>-{fmt_coins(race_sink)}</b>\n"
+            f"⚖️ Net гонок: <b>{'+' if race_net > 0 else ''}{format_number(race_net)} Coins</b>\n\n"
+            "<b>5) Что делать сейчас</b>\n"
+            f"{recommendations_compact}\n\n"
+            f"{footer()}"
+        )
+        toggle_button = InlineKeyboardButton(text="🔎 Развернуть", callback_data="admin:all_analytics:full")
 
     await call.message.edit_text(
-        f"{header()}\n\n"
-        "💹 <b>Экономика (7 дней)</b>\n\n"
-        f"🟢 Выдано: <b>+{fmt_coins(eco['faucet'])}</b>\n"
-        f"🔴 Сожжено: <b>-{fmt_coins(eco['sink'])}</b>\n"
-        f"⚖️ Чистый баланс: <b>{'+' if int(eco['net']) > 0 else ''}{format_number(eco['net'])} Coins</b>\n\n"
-        f"<b>Топ источников выдачи:</b>\n"
-        f"{chr(10).join(faucet_lines) if faucet_lines else 'Пока нет данных'}\n\n"
-        f"<b>Топ источников списания:</b>\n"
-        f"{chr(10).join(sink_lines) if sink_lines else 'Пока нет данных'}\n\n"
-        "🏁 <b>Гонки (7 дней)</b>\n\n"
-        f"🏎 Заездов с победителем: <b>{format_number(race_eco['races_played'])}</b>\n"
-        f"👤 Уникальных гонщиков: <b>{format_number(race_eco['unique_racers'])}</b>\n"
-        f"🟢 Выдано за победы: <b>+{fmt_coins(race_eco['faucet'])}</b>\n"
-        f"🔴 Сожжено на тюнинге: <b>-{fmt_coins(race_eco['sink'])}</b>\n"
-        f"⚖️ Чистый баланс гонок: <b>{'+' if race_net > 0 else ''}{format_number(race_net)} Coins</b>\n\n"
-        f"{footer()}",
+        analytics_text,
         reply_markup=InlineKeyboardMarkup(
             inline_keyboard=[
+                [toggle_button],
                 [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
                 [InlineKeyboardButton(text="🔙 Меню", callback_data="start")],
             ]
@@ -4422,7 +4466,7 @@ async def buy_cases_menu(call: CallbackQuery):
     
     paid_case = {
         "name": "Платный",
-        "price": 38000,
+        "price": PAID_CASE_PRICE,
         "desc": "70% Обычная, 20% Редкая, 8% Эпическая, 2% Легендарная",
     }
 
@@ -4460,7 +4504,7 @@ async def buy_case(call: CallbackQuery):
 
     case_info = {
         "name": "Платный",
-        "price": 38000,
+        "price": PAID_CASE_PRICE,
         "rarity_dist": [(0.70, "Common"), (0.90, "Rare"), (0.98, "Epic"), (1.0, "Legendary")],
     }
 
