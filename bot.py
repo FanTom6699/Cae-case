@@ -809,8 +809,9 @@ def build_group_duel_result_text(
     challenger_stats_on_map = apply_map_modifiers_to_stats(challenger_stats, selected_map)
     opponent_stats_on_map = apply_map_modifiers_to_stats(opponent_stats, selected_map)
 
-    race_result = simulate_race(challenger_stats_on_map, opponent_stats_on_map, ticks_total=9)
+    race_result = simulate_race(challenger_stats_on_map, opponent_stats_on_map, ticks_total=12)
     winner = race_result.get("winner")
+    winner_reason = str(race_result.get("winner_reason") or "")
     frames = race_result.get("frames") or []
 
     challenger_power = (
@@ -834,20 +835,53 @@ def build_group_duel_result_text(
         opponent_stats_on_map["grip"] + opponent_stats_on_map["reliability"]
     )
 
-    reasons = [
-        (abs(speed_diff), "скорость", speed_diff),
-        (abs(accel_diff), "разгон", accel_diff),
-        (abs(stability_diff), "стабильность", stability_diff),
-    ]
-    reasons.sort(key=lambda x: x[0], reverse=True)
-    top_metric, top_value = reasons[0][1], reasons[0][2]
-
-    if top_value > 0:
-        explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {challenger_name}"
-    elif top_value < 0:
-        explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {opponent_name}"
+    winner_advantages = []
+    if winner == "player":
+        winner_advantages = [
+            ("скорость", speed_diff),
+            ("разгон", accel_diff),
+            ("стабильность", stability_diff),
+        ]
+        winner_advantages = [(name, value) for name, value in winner_advantages if value > 0]
+        winner_advantages.sort(key=lambda x: abs(x[1]), reverse=True)
+        if winner_advantages:
+            top_metric, top_value = winner_advantages[0]
+            explain_line = (
+                f"Ключевой фактор победителя: <b>{top_metric}</b> "
+                f"(+{abs(top_value):.0f}) у {challenger_name}"
+            )
+        else:
+            explain_line = f"Ключевой фактор победителя: у {challenger_name} не было явного перевеса по статам"
+    elif winner == "opponent":
+        winner_advantages = [
+            ("скорость", -speed_diff),
+            ("разгон", -accel_diff),
+            ("стабильность", -stability_diff),
+        ]
+        winner_advantages = [(name, value) for name, value in winner_advantages if value > 0]
+        winner_advantages.sort(key=lambda x: abs(x[1]), reverse=True)
+        if winner_advantages:
+            top_metric, top_value = winner_advantages[0]
+            explain_line = (
+                f"Ключевой фактор победителя: <b>{top_metric}</b> "
+                f"(+{abs(top_value):.0f}) у {opponent_name}"
+            )
+        else:
+            explain_line = f"Ключевой фактор победителя: у {opponent_name} не было явного перевеса по статам"
     else:
-        explain_line = "Ключевой фактор: <b>почти равные характеристики</b>"
+        reasons = [
+            (abs(speed_diff), "скорость", speed_diff),
+            (abs(accel_diff), "разгон", accel_diff),
+            (abs(stability_diff), "стабильность", stability_diff),
+        ]
+        reasons.sort(key=lambda x: x[0], reverse=True)
+        top_metric, top_value = reasons[0][1], reasons[0][2]
+        if top_value > 0:
+            explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {challenger_name}"
+        elif top_value < 0:
+            explain_line = f"Ключевой фактор: <b>{top_metric}</b> в пользу {opponent_name}"
+        else:
+            explain_line = "Ключевой фактор: <b>почти равные характеристики</b>"
 
     tempo_gap = challenger_power - opponent_power
     if tempo_gap > 0:
@@ -886,12 +920,62 @@ def build_group_duel_result_text(
     player_time_s = float(race_result.get("player_time_s", 0.0))
     opponent_time_s = float(race_result.get("opponent_time_s", 0.0))
     time_gap = abs(player_time_s - opponent_time_s)
+    finish_gap_ms = int(round(time_gap * 1000.0))
     if winner == "player":
         finish_line = f"• Финиш: {challenger_name} быстрее на <b>{time_gap:.2f} c</b>"
     elif winner == "opponent":
         finish_line = f"• Финиш: {opponent_name} быстрее на <b>{time_gap:.2f} c</b>"
     else:
         finish_line = "• Финиш: фотофиниш, разница минимальна"
+
+    if winner == "player":
+        if winner_reason == "photo_finish_time":
+            decision_line = (
+                f"• Решающий момент: {challenger_name} выиграл фотофиниш по времени "
+                f"(<b>{max(1, finish_gap_ms)} мс</b>)"
+            )
+        else:
+            decision_line = f"• Решающий момент: {challenger_name} удержал лидерство по дистанции"
+    elif winner == "opponent":
+        if winner_reason == "photo_finish_time":
+            decision_line = (
+                f"• Решающий момент: {opponent_name} выиграл фотофиниш по времени "
+                f"(<b>{max(1, finish_gap_ms)} мс</b>)"
+            )
+        else:
+            decision_line = f"• Решающий момент: {opponent_name} удержал лидерство по дистанции"
+    else:
+        if finish_gap_ms > 0:
+            decision_line = f"• Решающий момент: фотофиниш (<b>{finish_gap_ms} мс</b>) — зафиксирована ничья"
+        else:
+            decision_line = "• Решающий момент: разница меньше <b>1 мс</b> — зафиксирована ничья"
+
+    if winner == "player":
+        advantage_parts = []
+        if speed_diff > 0:
+            advantage_parts.append(f"скорость +{abs(speed_diff):.0f}")
+        if accel_diff > 0:
+            advantage_parts.append(f"разгон +{abs(accel_diff):.0f}")
+        if stability_diff > 0:
+            advantage_parts.append(f"стабильность +{abs(stability_diff):.0f}")
+        if advantage_parts:
+            advantages_line = f"• Преимущества победителя: {', '.join(advantage_parts)}"
+        else:
+            advantages_line = f"• Преимущества победителя: по статам паритет, {challenger_name} дожал на дистанции"
+    elif winner == "opponent":
+        advantage_parts = []
+        if speed_diff < 0:
+            advantage_parts.append(f"скорость +{abs(speed_diff):.0f}")
+        if accel_diff < 0:
+            advantage_parts.append(f"разгон +{abs(accel_diff):.0f}")
+        if stability_diff < 0:
+            advantage_parts.append(f"стабильность +{abs(stability_diff):.0f}")
+        if advantage_parts:
+            advantages_line = f"• Преимущества победителя: {', '.join(advantage_parts)}"
+        else:
+            advantages_line = f"• Преимущества победителя: по статам паритет, {opponent_name} дожал на дистанции"
+    else:
+        advantages_line = "• Преимущества по статам: явного перевеса не было"
 
     track_mods = selected_map.get("modifiers", {}) if isinstance(selected_map.get("modifiers", {}), dict) else {}
     mod_labels = {
@@ -1001,6 +1085,8 @@ def build_group_duel_result_text(
         f"{start_line}\n"
         f"{peak_line}\n"
         f"{finish_line}\n"
+        f"{decision_line}\n"
+        f"{advantages_line}\n"
         f"{track_line}\n"
         f"{(chance_line + chr(10)) if chance_line else ''}"
         f"{(randomness_line + chr(10)) if randomness_line else ''}\n"

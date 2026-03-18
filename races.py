@@ -79,6 +79,8 @@ CLASS_TARGET_POWER = {
 
 CLASS_POWER_TOLERANCE = 8.0
 CLASS_POWER_TOLERANCE_TUNED = float(os.getenv("RACE_CLASS_POWER_TOLERANCE_TUNED", "10"))
+RACE_DEFAULT_TICKS_TOTAL = int(os.getenv("RACE_DEFAULT_TICKS_TOTAL", "12"))
+RACE_TIME_TIE_EPS_S = float(os.getenv("RACE_TIME_TIE_EPS_S", "0.04"))
 
 TUNING_PRICE_BY_CLASS = {
     "D": {
@@ -682,7 +684,7 @@ def render_race_frame(
     )
 
 
-def simulate_race(player_stats: dict, opponent_stats: dict, ticks_total: int = 9) -> dict:
+def simulate_race(player_stats: dict, opponent_stats: dict, ticks_total: int = RACE_DEFAULT_TICKS_TOTAL) -> dict:
     def _estimate_time_from_frames(items: list[dict], key: str, tick_duration_s: float = 1.0) -> float:
         if not items:
             return 0.0
@@ -716,20 +718,33 @@ def simulate_race(player_stats: dict, opponent_stats: dict, ticks_total: int = 9
         if p >= 100.0 or o >= 100.0:
             break
 
-    winner = "draw"
-    if p > o:
-        winner = "player"
-    elif o > p:
-        winner = "opponent"
-
     player_time_s = _estimate_time_from_frames(frames, "player_progress", tick_duration_s=1.0)
     opponent_time_s = _estimate_time_from_frames(frames, "opponent_progress", tick_duration_s=1.0)
+    time_gap_s = float(player_time_s - opponent_time_s)
+
+    winner = "draw"
+    winner_reason = "photo_finish"
+    if p > o:
+        winner = "player"
+        winner_reason = "distance"
+    elif o > p:
+        winner = "opponent"
+        winner_reason = "distance"
+    elif time_gap_s < -RACE_TIME_TIE_EPS_S:
+        winner = "player"
+        winner_reason = "photo_finish_time"
+    elif time_gap_s > RACE_TIME_TIE_EPS_S:
+        winner = "opponent"
+        winner_reason = "photo_finish_time"
 
     return {
         "frames": frames,
         "winner": winner,
+        "winner_reason": winner_reason,
         "player_progress": p,
         "opponent_progress": o,
         "player_time_s": player_time_s,
         "opponent_time_s": opponent_time_s,
+        "time_gap_s": abs(time_gap_s),
+        "time_tie_eps_s": RACE_TIME_TIE_EPS_S,
     }
