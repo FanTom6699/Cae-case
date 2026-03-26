@@ -3970,8 +3970,12 @@ async def render_admin_users_page(call: CallbackQuery, page: int):
         username = (row.get("username") or "").strip()
         first_name = (row.get("first_name") or "Игрок").strip()
         nick = f"@{username}" if username else first_name
+        if username:
+            display_name = f"{first_name} ({nick})"
+        else:
+            display_name = first_name
         short_nick = nick if len(nick) <= 24 else f"{nick[:23]}…"
-        lines.append(f"• {short_nick} — <code>{uid}</code>")
+        lines.append(f"• {display_name}")
         keyboard_rows.append([
             InlineKeyboardButton(
                 text=f"👤 {short_nick}",

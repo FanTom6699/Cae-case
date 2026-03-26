@@ -1230,7 +1230,8 @@ def get_users_page(page=0, page_size=10):
         """
         SELECT user_id, username, first_name, coins
         FROM users
-        ORDER BY user_id DESC
+        ORDER BY LOWER(COALESCE(NULLIF(username, ''), NULLIF(first_name, ''), CAST(user_id AS TEXT))) ASC,
+                 user_id ASC
         LIMIT ? OFFSET ?
         """,
         (safe_page_size, offset),
