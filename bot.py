@@ -51,6 +51,7 @@ from database import (
     get_economy_analytics,
     get_race_economy_analytics,
     get_users_page,
+    set_user_dm_status,
     search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
@@ -482,6 +483,15 @@ def clear_admin_pending_states(user_id: int):
     ADMIN_DUPLICATE_PITY_PENDING.discard(user_id)
 
 
+def classify_private_send_status(exc: Exception) -> str:
+    message = str(exc or "").lower()
+    if "blocked" in message or "forbidden" in message:
+        return "blocked"
+    if "deactivated" in message or "deleted" in message:
+        return "deleted"
+    return "unknown"
+
+
 def build_admin_player_profile_view(target_user_id: int, back_callback: str = "menu:admin"):
     target_user = get_user(target_user_id)
     if not target_user:
@@ -491,12 +501,31 @@ def build_admin_player_profile_view(target_user_id: int, back_callback: str = "m
     total_cars = sum(rarity_counts.values())
     username = target_user.get("username")
     nick = f"@{username}" if username else "Без ника"
+    dm_status = str(target_user.get("dm_status") or "unknown").lower()
+    dm_status_updated_at = target_user.get("dm_status_updated_at")
+    dm_status_labels = {
+        "active": "✅ Активен",
+        "blocked": "⛔ Заблокировал бота",
+        "deleted": "🗑 Аккаунт удалён",
+        "unknown": "❔ Неизвестно",
+    }
+    dm_status_text = dm_status_labels.get(dm_status, "❔ Неизвестно")
+    dm_checked_line = ""
+    if dm_status_updated_at:
+        try:
+            checked_at = datetime.fromisoformat(str(dm_status_updated_at)).strftime("%d.%m.%Y %H:%M")
+            dm_checked_line = f"\n🕒 <b>Проверено:</b> {checked_at}"
+        except Exception:
+            dm_checked_line = ""
+    else:
+        dm_checked_line = "\n🕒 <b>Проверено:</b> ещё не проверялся"
 
     text = (
         f"{header()}\n\n"
         "👤 <b>Профиль игрока</b>\n\n"
         f"🪪 <b>Ник:</b> {nick}\n"
         f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
+        f"📨 <b>ЛС статус:</b> {dm_status_text}{dm_checked_line}\n"
         f"💰 <b>Баланс:</b> {target_user['coins']} Coins\n"
         f"🎁 <b>Открыто кейсов:</b> {target_user.get('total_cases_opened', 0)}\n"
         f"🚗 <b>Машин:</b> {total_cars}\n\n"
@@ -3479,8 +3508,10 @@ async def feedback_message(message: Message):
             for uid in get_all_user_ids():
                 try:
                     await bot.send_message(uid, payload)
+                    set_user_dm_status(uid, "active")
                     users_ok += 1
-                except Exception:
+                except Exception as exc:
+                    set_user_dm_status(uid, classify_private_send_status(exc))
                     users_fail += 1
 
         if target in {"groups", "all"}:
@@ -3969,16 +4000,29 @@ async def render_admin_users_page(call: CallbackQuery, page: int):
         uid = int(row.get("user_id", 0))
         username = (row.get("username") or "").strip()
         first_name = (row.get("first_name") or "Игрок").strip()
+        dm_status = str(row.get("dm_status") or "unknown").lower()
+        status_emoji = {
+            "active": "✅",
+            "blocked": "⛔",
+            "deleted": "🗑",
+            "unknown": "❔",
+        }.get(dm_status, "❔")
+        status_short = {
+            "active": "Активен",
+            "blocked": "Блок",
+            "deleted": "Удалён",
+            "unknown": "Неизв",
+        }.get(dm_status, "Неизв")
         nick = f"@{username}" if username else first_name
         if username:
             display_name = f"{first_name} ({nick})"
         else:
             display_name = first_name
         short_nick = nick if len(nick) <= 24 else f"{nick[:23]}…"
-        lines.append(f"• {display_name}")
+        lines.append(f"• {status_emoji} [{status_short}] {display_name}")
         keyboard_rows.append([
             InlineKeyboardButton(
-                text=f"👤 {short_nick}",
+                text=f"👤 {status_emoji} [{status_short}] {short_nick}",
                 callback_data=f"admin:user_open:{uid}:{safe_page}",
             )
         ])
@@ -3998,6 +4042,7 @@ async def render_admin_users_page(call: CallbackQuery, page: int):
         f"{header()}\n\n"
         "📋 <b>Список игроков</b>\n\n"
         "Нажми на ник, чтобы открыть профиль игрока.\n\n"
+        "Легенда: ✅ [Активен] | ⛔ [Блок] | 🗑 [Удалён] | ❔ [Неизв]\n\n"
         f"👥 Всего игроков: <b>{format_number(total)}</b>\n"
         f"📄 Страница: <b>{safe_page + 1}/{total_pages}</b>\n\n"
         f"{chr(10).join(lines) if lines else 'Пока нет зарегистрированных игроков.'}\n\n"

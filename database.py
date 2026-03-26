@@ -36,7 +36,9 @@ def init_db():
         race_total INTEGER DEFAULT 0,
         race_wins INTEGER DEFAULT 0,
         race_losses INTEGER DEFAULT 0,
-        race_draws INTEGER DEFAULT 0
+        race_draws INTEGER DEFAULT 0,
+        dm_status TEXT DEFAULT 'unknown',
+        dm_status_updated_at TEXT
     )
     """)
 
@@ -244,9 +246,22 @@ def init_db():
             "ALTER TABLE users ADD COLUMN race_draws INTEGER DEFAULT 0"
         )
 
+    if "dm_status" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN dm_status TEXT DEFAULT 'unknown'"
+        )
+
+    if "dm_status_updated_at" not in columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN dm_status_updated_at TEXT"
+        )
+
     cur.execute(
         "UPDATE users SET created_at = COALESCE(created_at, ?) WHERE created_at IS NULL OR created_at = ''",
         (datetime.utcnow().isoformat(),)
+    )
+    cur.execute(
+        "UPDATE users SET dm_status = COALESCE(NULLIF(dm_status, ''), 'unknown')"
     )
 
     # Мягкий бэкфилл: для старых пользователей, у кого счётчик ещё 0,
@@ -307,6 +322,10 @@ def add_user(user_id, username=None, first_name=None):
         """,
         (user_id, username, first_name, 0, 1, None, datetime.utcnow().isoformat(), 0, 0, 0, None, 0, 0, None, 0)  # 1 стартовый кейс
     )
+    cur.execute(
+        "UPDATE users SET dm_status = 'active', dm_status_updated_at = ? WHERE user_id = ?",
+        (datetime.utcnow().isoformat(), user_id)
+    )
     conn.commit()
     conn.close()
 
@@ -315,8 +334,8 @@ def update_user_profile(user_id, username=None, first_name=None):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "UPDATE users SET username = ?, first_name = ? WHERE user_id = ?",
-        (username, first_name, user_id)
+        "UPDATE users SET username = ?, first_name = ?, dm_status = 'active', dm_status_updated_at = ? WHERE user_id = ?",
+        (username, first_name, datetime.utcnow().isoformat(), user_id)
     )
     conn.commit()
     conn.close()
@@ -327,7 +346,7 @@ def get_user(user_id):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak, race_total, race_wins, race_losses, race_draws
+        SELECT user_id, username, first_name, coins, last_case_time, cases_common, last_free_case_time, created_at, total_cases_opened, xp_total, level_round_rewarded, last_daily_notify_day, streak_current, streak_best, streak_last_claim_day, duplicate_streak, race_total, race_wins, race_losses, race_draws, COALESCE(dm_status, 'unknown'), dm_status_updated_at
         FROM users WHERE user_id = ?
         """,
         (user_id,)
@@ -359,7 +378,24 @@ def get_user(user_id):
         "race_wins": row[17],
         "race_losses": row[18],
         "race_draws": row[19],
+        "dm_status": row[20] or "unknown",
+        "dm_status_updated_at": row[21],
     }
+
+
+def set_user_dm_status(user_id, status):
+    normalized = str(status or "").strip().lower()
+    if normalized not in {"unknown", "active", "blocked", "deleted"}:
+        normalized = "unknown"
+
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET dm_status = ?, dm_status_updated_at = ? WHERE user_id = ?",
+        (normalized, datetime.utcnow().isoformat(), user_id)
+    )
+    conn.commit()
+    conn.close()
 
 
 def add_race_result(user_id, result):
@@ -1228,7 +1264,7 @@ def get_users_page(page=0, page_size=10):
 
     cur.execute(
         """
-        SELECT user_id, username, first_name, coins
+        SELECT user_id, username, first_name, coins, COALESCE(dm_status, 'unknown')
         FROM users
         ORDER BY LOWER(COALESCE(NULLIF(username, ''), NULLIF(first_name, ''), CAST(user_id AS TEXT))) ASC,
                  user_id ASC
@@ -1240,7 +1276,7 @@ def get_users_page(page=0, page_size=10):
     conn.close()
 
     users = [
-        {"user_id": r[0], "username": r[1], "first_name": r[2], "coins": r[3]}
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "coins": r[3], "dm_status": (r[4] or "unknown")}
         for r in rows
     ]
     return {
