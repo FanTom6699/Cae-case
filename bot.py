@@ -50,6 +50,7 @@ from database import (
     get_xp_analytics,
     get_economy_analytics,
     get_race_economy_analytics,
+    get_users_page,
     search_users_by_nick,
     get_group_welcome_enabled,
     set_group_welcome_enabled,
@@ -479,6 +480,40 @@ def clear_admin_pending_states(user_id: int):
     ADMIN_USER_FIND_PENDING.discard(user_id)
     ADMIN_USER_EDIT_PENDING.pop(user_id, None)
     ADMIN_DUPLICATE_PITY_PENDING.discard(user_id)
+
+
+def build_admin_player_profile_view(target_user_id: int, back_callback: str = "menu:admin"):
+    target_user = get_user(target_user_id)
+    if not target_user:
+        return None, None
+
+    rarity_counts = get_user_rarity_counts(target_user_id)
+    total_cars = sum(rarity_counts.values())
+    username = target_user.get("username")
+    nick = f"@{username}" if username else "Без ника"
+
+    text = (
+        f"{header()}\n\n"
+        "👤 <b>Профиль игрока</b>\n\n"
+        f"🪪 <b>Ник:</b> {nick}\n"
+        f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
+        f"💰 <b>Баланс:</b> {target_user['coins']} Coins\n"
+        f"🎁 <b>Открыто кейсов:</b> {target_user.get('total_cases_opened', 0)}\n"
+        f"🚗 <b>Машин:</b> {total_cars}\n\n"
+        "<b>По редкостям:</b>\n"
+        f"⚪ Обычная: {rarity_counts.get('Common', 0)}\n"
+        f"🔵 Редкая: {rarity_counts.get('Rare', 0)}\n"
+        f"🟣 Эпическая: {rarity_counts.get('Epic', 0)}\n"
+        f"🟡 Легендарная: {rarity_counts.get('Legendary', 0)}\n\n"
+        f"{footer()}"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="✏️ Редактировать этого игрока", callback_data=f"admin:edit_user_id:{target_user_id}")],
+            [InlineKeyboardButton(text="◀️ Назад", callback_data=back_callback)],
+        ]
+    )
+    return text, kb
 
 
 def get_fast_tap_today_count(chat_id: int) -> int:
@@ -3201,8 +3236,8 @@ async def feedback_message(message: Message):
             return
 
         target_user_id = int(text)
-        target_user = get_user(target_user_id)
-        if not target_user:
+        text, kb = build_admin_player_profile_view(target_user_id)
+        if not text:
             await message.answer(
                 f"{header()}\n\n"
                 "❌ Игрок не найден\n\n"
@@ -3213,33 +3248,7 @@ async def feedback_message(message: Message):
 
         ADMIN_PROFILE_LOOKUP_PENDING.discard(message.from_user.id)
 
-        rarity_counts = get_user_rarity_counts(target_user_id)
-        total_cars = sum(rarity_counts.values())
-        username = target_user.get("username")
-        nick = f"@{username}" if username else "Без ника"
-
-        await message.answer(
-            f"{header()}\n\n"
-            "👤 <b>Профиль игрока</b>\n\n"
-            f"🪪 <b>Ник:</b> {nick}\n"
-            f"🆔 <b>ID:</b> <code>{target_user_id}</code>\n"
-            f"💰 <b>Баланс:</b> {target_user['coins']} Coins\n"
-            f"🎁 <b>Открыто кейсов:</b> {target_user.get('total_cases_opened', 0)}\n"
-            f"🚗 <b>Машин:</b> {total_cars}\n\n"
-            "<b>По редкостям:</b>\n"
-            f"⚪ Обычная: {rarity_counts.get('Common', 0)}\n"
-            f"🔵 Редкая: {rarity_counts.get('Rare', 0)}\n"
-            f"🟣 Эпическая: {rarity_counts.get('Epic', 0)}\n"
-            f"🟡 Легендарная: {rarity_counts.get('Legendary', 0)}\n\n"
-            f"{footer()}",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text="✏️ Редактировать этого игрока", callback_data=f"admin:edit_user_id:{target_user_id}")],
-                    [InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")],
-                ]
-            ),
-            parse_mode="HTML",
-        )
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
         return
 
     if is_owner(message.from_user.id) and message.from_user.id in ADMIN_EDIT_LOOKUP_PENDING:
@@ -3732,6 +3741,7 @@ async def admin_panel(call: CallbackQuery):
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
+            [InlineKeyboardButton(text="📋 Список игроков", callback_data="admin:users")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -3772,6 +3782,7 @@ async def admin_command(message: Message):
             [InlineKeyboardButton(text="📅 Статус недели", callback_data="admin:week")],
             [InlineKeyboardButton(text="⚡ Быстрый раунд", callback_data="admin:fast_tap_menu")],
             [InlineKeyboardButton(text="🛡 Гарант дублей", callback_data="admin:duplicate_pity")],
+            [InlineKeyboardButton(text="📋 Список игроков", callback_data="admin:users")],
             [InlineKeyboardButton(text="🚗 Список машин", callback_data="admin:cars_menu")],
             [InlineKeyboardButton(text="👤 Профиль игрока", callback_data="admin:user_profile")],
             [InlineKeyboardButton(text="🔎 Поиск по нику", callback_data="admin:user_find")],
@@ -3936,6 +3947,106 @@ async def admin_all_analytics(call: CallbackQuery):
         ),
         parse_mode="HTML",
     )
+    await call.answer()
+
+
+async def render_admin_users_page(call: CallbackQuery, page: int):
+    page_size = 8
+    data = get_users_page(page=page, page_size=page_size)
+    total = int(data.get("total", 0))
+    users = data.get("users", [])
+    safe_page = int(data.get("page", 0))
+    total_pages = max(1, math.ceil(total / page_size))
+
+    if safe_page >= total_pages:
+        safe_page = max(0, total_pages - 1)
+        data = get_users_page(page=safe_page, page_size=page_size)
+        users = data.get("users", [])
+
+    lines = []
+    keyboard_rows = []
+    for row in users:
+        uid = int(row.get("user_id", 0))
+        username = (row.get("username") or "").strip()
+        first_name = (row.get("first_name") or "Игрок").strip()
+        nick = f"@{username}" if username else first_name
+        short_nick = nick if len(nick) <= 24 else f"{nick[:23]}…"
+        lines.append(f"• {short_nick} — <code>{uid}</code>")
+        keyboard_rows.append([
+            InlineKeyboardButton(
+                text=f"👤 {short_nick}",
+                callback_data=f"admin:user_open:{uid}:{safe_page}",
+            )
+        ])
+
+    nav_row = []
+    if safe_page > 0:
+        nav_row.append(InlineKeyboardButton(text="⬅️", callback_data=f"admin:users:page:{safe_page - 1}"))
+    nav_row.append(InlineKeyboardButton(text=f"{safe_page + 1}/{total_pages}", callback_data="noop"))
+    if safe_page + 1 < total_pages:
+        nav_row.append(InlineKeyboardButton(text="➡️", callback_data=f"admin:users:page:{safe_page + 1}"))
+    if nav_row:
+        keyboard_rows.append(nav_row)
+
+    keyboard_rows.append([InlineKeyboardButton(text="◀️ Назад в админку", callback_data="menu:admin")])
+
+    await call.message.edit_text(
+        f"{header()}\n\n"
+        "📋 <b>Список игроков</b>\n\n"
+        "Нажми на ник, чтобы открыть профиль игрока.\n\n"
+        f"👥 Всего игроков: <b>{format_number(total)}</b>\n"
+        f"📄 Страница: <b>{safe_page + 1}/{total_pages}</b>\n\n"
+        f"{chr(10).join(lines) if lines else 'Пока нет зарегистрированных игроков.'}\n\n"
+        f"{footer()}",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=keyboard_rows),
+        parse_mode="HTML",
+    )
+
+
+@dp.callback_query(F.data == "admin:users")
+async def admin_users_list(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    await render_admin_users_page(call, page=0)
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:users:page:"))
+async def admin_users_list_page(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    parts = (call.data or "").split(":")
+    page = 0
+    if len(parts) >= 4 and parts[3].isdigit():
+        page = int(parts[3])
+
+    await render_admin_users_page(call, page=page)
+    await call.answer()
+
+
+@dp.callback_query(F.data.startswith("admin:user_open:"))
+async def admin_user_open_from_list(call: CallbackQuery):
+    if not is_owner(call.from_user.id):
+        await call.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    parts = (call.data or "").split(":")
+    if len(parts) < 4 or not parts[2].isdigit():
+        await call.answer("❌ Некорректный ID", show_alert=True)
+        return
+
+    target_user_id = int(parts[2])
+    page = int(parts[3]) if len(parts) >= 4 and parts[3].isdigit() else 0
+    text, kb = build_admin_player_profile_view(target_user_id, back_callback=f"admin:users:page:{page}")
+    if not text:
+        await call.answer("❌ Игрок не найден", show_alert=True)
+        return
+
+    await call.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
     await call.answer()
 
 

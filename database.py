@@ -1215,6 +1215,41 @@ def search_users_by_nick(query, limit=20):
     ]
 
 
+def get_users_page(page=0, page_size=10):
+    safe_page = max(0, int(page or 0))
+    safe_page_size = max(1, min(50, int(page_size or 10)))
+    offset = safe_page * safe_page_size
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(*) FROM users")
+    total = int(cur.fetchone()[0] or 0)
+
+    cur.execute(
+        """
+        SELECT user_id, username, first_name, coins
+        FROM users
+        ORDER BY user_id DESC
+        LIMIT ? OFFSET ?
+        """,
+        (safe_page_size, offset),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    users = [
+        {"user_id": r[0], "username": r[1], "first_name": r[2], "coins": r[3]}
+        for r in rows
+    ]
+    return {
+        "total": total,
+        "page": safe_page,
+        "page_size": safe_page_size,
+        "users": users,
+    }
+
+
 def set_user_coins(user_id, amount):
     conn = get_connection()
     cur = conn.cursor()
