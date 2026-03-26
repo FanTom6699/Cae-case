@@ -487,9 +487,20 @@ def classify_private_send_status(exc: Exception) -> str:
     message = str(exc or "").lower()
     if "blocked" in message or "forbidden" in message:
         return "blocked"
-    if "deactivated" in message or "deleted" in message:
+    if "deactivated" in message or "deleted" in message or "chat not found" in message:
         return "deleted"
     return "unknown"
+
+
+async def probe_private_dm_status(user_id: int) -> str:
+    try:
+        await bot.send_chat_action(int(user_id), "typing")
+        set_user_dm_status(user_id, "active")
+        return "active"
+    except Exception as exc:
+        status = classify_private_send_status(exc)
+        set_user_dm_status(user_id, status)
+        return status
 
 
 def build_admin_player_profile_view(target_user_id: int, back_callback: str = "menu:admin"):
@@ -4001,6 +4012,9 @@ async def render_admin_users_page(call: CallbackQuery, page: int):
         username = (row.get("username") or "").strip()
         first_name = (row.get("first_name") or "Игрок").strip()
         dm_status = str(row.get("dm_status") or "unknown").lower()
+        if dm_status == "unknown":
+            dm_status = await probe_private_dm_status(uid)
+            row["dm_status"] = dm_status
         status_emoji = {
             "active": "✅",
             "blocked": "⛔",
